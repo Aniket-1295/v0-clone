@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.36.8",
+    "@e2b/code-interpreter": "^2.3.3",
+    "@e2b/sdk": "^0.12.5",
     "@hookform/resolvers": "^5.2.2",
     "@inngest/agent-kit": "^0.13.2",
     "@prisma/client": "^6.19.1",
