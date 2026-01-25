@@ -1,17 +1,17 @@
 # This is a config for E2B sandbox template.
-# You can use template ID (7cl2nt1ar3m08c01aoet) or template name (v0-nextjs-dev) to create a sandbox:
+# You can use template ID (bzvqj2mi9ejsnr12jaiw) or template name (v0-version-final-next) to create a sandbox:
 
 # Python SDK
 # from e2b import Sandbox, AsyncSandbox
-# sandbox = Sandbox.create("v0-nextjs-dev") # Sync sandbox
-# sandbox = await AsyncSandbox.create("v0-nextjs-dev") # Async sandbox
+# sandbox = Sandbox.create("v0-version-final-next") # Sync sandbox
+# sandbox = await AsyncSandbox.create("v0-version-final-next") # Async sandbox
 
 # JS SDK
 # import { Sandbox } from 'e2b'
-# const sandbox = await Sandbox.create('v0-nextjs-dev')
+# const sandbox = await Sandbox.create('v0-version-final-next')
 
 team_id = "bab6ce38-5975-4c0e-9917-c48e5310cdf2"
-start_cmd = "C:/Program Files/Git/compile_page.sh"
+start_cmd = "/compile_page.sh"
 dockerfile = "e2b.Dockerfile"
-template_name = "v0-nextjs-dev"
-template_id = "7cl2nt1ar3m08c01aoet"
+template_name = "v0-version-final-next"
+template_id = "bzvqj2mi9ejsnr12jaiw"
