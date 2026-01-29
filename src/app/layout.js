@@ -8,6 +8,8 @@ import {Toaster} from "@/components/ui/sonner"
 
 import { ThemeProvider } from "@/components/theme-provider";
 
+import { QueryProvider } from "@/components/query-provider";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -36,8 +38,10 @@ export default function RootLayout({ children }) {
         enableSystem
         disableTransitionOnChange
         >
+           <QueryProvider>
           <Toaster />
         {children}
+        </QueryProvider>
         </ThemeProvider>
       </body>
     </html>
