@@ -13,14 +13,14 @@ import { useAuth } from "@clerk/nextjs";
 import ProjectHeader from "./project-header";
 import MessageContainer from "./message-container";
 import { Code, CrownIcon, EyeIcon } from "lucide-react";
-// import FragmentWeb from "./fragment-web";
-// import { FileExplorer } from "./file-explorer";
+import FragmentWeb from "./fragment-web";
+import { FileExplorer } from "./file-explorer";
 
 
 const ProjectView = ({ projectId }) => {
 
   const [activeFragment, setActiveFragment] = useState(null);
-  // const [tabState, setTabState] = useState("preview");
+  const [tabState, setTabState] = useState("preview");
 
   
 
@@ -42,7 +42,7 @@ const ProjectView = ({ projectId }) => {
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={65} minSize={50}>
-          {/* <Tabs
+          <Tabs
             className={"h-full flex flex-col"}
             defaultValue="preview"
             value={tabState}
@@ -105,7 +105,7 @@ const ProjectView = ({ projectId }) => {
                 )
               }
             </TabsContent>
-          </Tabs> */}
+          </Tabs>
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
