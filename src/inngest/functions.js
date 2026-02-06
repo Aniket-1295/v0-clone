@@ -26,6 +26,42 @@ export const codeAgentFunction = inngest.createFunction(
       return sandbox.sandboxId;
     });
 
+    const previousMessages = await step.run(
+      "get-previous-messages",
+      async()=>{
+        const formattedMessages = [];
+
+        const messages = await db.message.findMany({
+          where:{
+            projectId:event.data.projectId
+          },
+          orderBy:{
+            createdAt:"desc"
+          }
+        })
+
+        for(const message of messages){
+          formattedMessages.push({
+            type:"text",
+            role:message.role === "ASSISTANT" ? "assistant" : "user",
+            content:message.content
+          })
+        }
+
+        return formattedMessages
+      }
+    )
+
+    const state = createState({
+      summary:"",
+      files:{}
+    }
+  ,
+  {
+    messages:previousMessages
+  }
+)
+
     const codeAgent = createAgent({
       name: "code-agent",
       description: "An expert coding agent",
@@ -171,7 +207,7 @@ export const codeAgentFunction = inngest.createFunction(
       },
     });
 
-    const result = await network.run(event.data.value);
+    const result = await network.run(event.data.value,{state});
 
     const fragmentTitleGenerator = createAgent({
       name:"fragment-title-generator",
