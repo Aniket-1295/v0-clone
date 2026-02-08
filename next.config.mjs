@@ -6,10 +6,7 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://*.vercel.app https://*.vusercontent.net https://v0.dev"
-          }
+         
         ]
       }
     ]
