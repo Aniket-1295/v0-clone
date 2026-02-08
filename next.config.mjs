@@ -8,19 +8,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "frame-src 'self' https://*.vusercontent.net https://*.vercel.app",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https:",
-              "font-src 'self' data:",
-              "connect-src 'self' https://*.vusercontent.net https://*.vercel.app"
-            ].join('; ')
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'ALLOWALL' // Or remove this header entirely
+            value: "frame-ancestors 'self' https://*.vercel.app https://*.vusercontent.net https://v0.dev"
           }
         ]
       }
