@@ -22,10 +22,7 @@ export const codeAgentFunction = inngest.createFunction(
   async ({ event, step }) => {
     // Step-1
     const sandboxId = await step.run("get-sandbox-id", async () => {
-      const sandbox = await Sandbox.create({
-        template: "v0-version-final-next",
-        allowIframe: true,
-      });
+      const sandbox = await Sandbox.create("v0-version-final-next");
       return sandbox.sandboxId;
     });
 
@@ -260,11 +257,6 @@ export const codeAgentFunction = inngest.createFunction(
    }
 
 
-
-
-    
-
-
     const isError =
       !result.state.data.summary ||
       Object.keys(result.state.data.files || {}).length === 0;
@@ -273,7 +265,7 @@ export const codeAgentFunction = inngest.createFunction(
       const sandbox = await Sandbox.connect(sandboxId);
       const host = sandbox.getHost(3000);
 
-      return `https://${host}`;
+      return `http://${host}`;
     });
 
     await step.run("save-result" , async()=>{
@@ -307,9 +299,6 @@ export const codeAgentFunction = inngest.createFunction(
     })
 
    
-
-    
-
     return {
       url: sandboxUrl,
       title: "Untitled",
