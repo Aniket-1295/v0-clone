@@ -63,7 +63,7 @@ const ProjectsForm = () => {
 
       
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {PROJECT_TEMPLATES.map((template, index) => (
           <button
             key={index}
@@ -93,7 +93,7 @@ const ProjectsForm = () => {
             Or describe your own idea
           </span>
         </div>
-      </div>
+      </div> */}
 
       <Form {...form}>
         <form
