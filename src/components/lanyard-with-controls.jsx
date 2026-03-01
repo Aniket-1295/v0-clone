@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
+import LiveDateText from './LiveLocationText';
 
 function BadgeCard({ name, variant = 'dark' }) {
     const isDark = variant !== 'light';
@@ -51,7 +52,7 @@ function BadgeCard({ name, variant = 'dark' }) {
                             isDark ? 'text-white' : 'text-black'
                         )}
                     >
-                       Build Something with 
+                      <LiveDateText />
                     </p>
                     {/* <p
                         className={cn(
