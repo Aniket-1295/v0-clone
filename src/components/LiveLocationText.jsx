@@ -59,7 +59,7 @@ export default function LiveDateText() {
     <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/5 via-transparent to-white/5 blur-2xl pointer-events-none" />
 
     {/* Thin top rule */}
-    <div className="w-full h-px bg-gradient-to-r from-transparent via-white/30 to-transparent mb-4" />
+    {/* <div className="w-full h-px bg-gradient-to-r from-transparent via-white/30 to-transparent mb-4" /> */}
 
     {/* Date line */}
     <DecryptedText
@@ -71,23 +71,21 @@ export default function LiveDateText() {
       speed={60}
       className="
         font-mono uppercase tracking-[0.25em]
-        text-2xl md:text-4xl lg:text-3xl
-        text-white font-bold
-        drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]
+        
       "
     />
 
     {/* Divider dot row */}
-    <div className="flex items-center gap-2 my-1">
+    {/* <div className="flex items-center gap-2 my-1">
       <div className="w-12 h-px bg-white/20" />
       <div className="w-1 h-1 rounded-full bg-white/50" />
       <div className="w-1.5 h-1.5 rounded-full bg-white/80" />
       <div className="w-1 h-1 rounded-full bg-white/50" />
       <div className="w-12 h-px bg-white/20" />
-    </div>
+    </div> */}
 
     {/* City line */}
-    <DecryptedText
+    {/* <DecryptedText
       text={city.toUpperCase()}
       animateOn="view"
       revealDirection="center"
@@ -100,10 +98,10 @@ export default function LiveDateText() {
         text-white/50
         drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]
       "
-    />
+    /> */}
 
     {/* Thin bottom rule */}
-    <div className="w-full h-px bg-gradient-to-r from-transparent via-white/30 to-transparent mt-4" />
+    {/* <div className="w-full h-px bg-gradient-to-r from-transparent via-white/30 to-transparent mt-4" /> */}
   </div>
   );
 }
