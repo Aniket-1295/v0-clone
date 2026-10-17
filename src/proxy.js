@@ -8,8 +8,9 @@ const isPublicRoute = createRouteMatcher([
   "/api(.*)",
 ])
 
-// Middleware to protect private routes
-export default clerkMiddleware(async(auth , req)=>{
+// Next 16 renamed middleware.js to proxy.js; it must export `proxy`.
+// Protects every route not listed above.
+export const proxy = clerkMiddleware(async(auth , req)=>{
   if(!isPublicRoute(req)){
     await auth.protect()
   }
