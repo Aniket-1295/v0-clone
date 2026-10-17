@@ -1,3 +1,4 @@
+import { SignedIn } from "@clerk/nextjs";
 import ProjectsForm from "@/modules/home/components/ProjectsForm";
 import ProjectList from "@/modules/home/components/project-list";
 import HeroSection from "@/modules/home/components/HeroSection";
@@ -13,7 +14,10 @@ export default function Home() {
             <div className="max-w-3xl w-full">
               <ProjectsForm />
             </div>
-            <ProjectList />
+            {/* getProjects requires a session; anonymous visitors used to trigger a 500 per visit. */}
+            <SignedIn>
+              <ProjectList />
+            </SignedIn>
           </section>
         </div>
       </div>

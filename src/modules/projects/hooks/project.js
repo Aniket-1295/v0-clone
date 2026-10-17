@@ -2,10 +2,11 @@ import {useQuery , useMutation , useQueryClient} from "@tanstack/react-query"
 import { unwrap } from "@/lib/action-result"
 import { createProject , getProjectById , getProjects } from "../actions"
 
-export const useGetProjects = ()=>{
+export const useGetProjects = ({ enabled = true } = {})=>{
     return useQuery({
         queryKey:["projects"],
-        queryFn:async()=>unwrap(await getProjects())
+        queryFn:async()=>unwrap(await getProjects()),
+        enabled
     })
 }
 
