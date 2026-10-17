@@ -1,13 +1,14 @@
 import {PrismaClient} from "@prisma/client";
 
+const isDevelopment = process.env.NODE_ENV === "development";
+
 const db = globalThis.prisma || new PrismaClient({
-    log:["query", "info", "warn", "error"],
+    // Query logging is noisy and leaks row data into production logs.
+    log: isDevelopment ? ["query", "info", "warn", "error"] : ["error", "warn"],
 });
 
-if(process.env.NODE_ENV === "development"){
-
-    globalThis.prisma = db 
-
+if(isDevelopment){
+    globalThis.prisma = db
 }
-   
+
 export default db
