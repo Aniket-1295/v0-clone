@@ -12,17 +12,48 @@ import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
 import { lastAssistantTextMessageContent } from "./utils";
 
 import  db  from "@/lib/db";
+import { refundCredits } from "@/lib/usage";
 
 import { MessageRole, MessageType } from "@prisma/client";
 
+// E2B kills sandboxes after 5 minutes by default; keep previews alive for 30.
+const SANDBOX_TIMEOUT_MS = 30 * 60 * 1000;
+// Only the most recent messages are replayed to the agent as context.
+const MAX_HISTORY_MESSAGES = 20;
+
 export const codeAgentFunction = inngest.createFunction(
-  { id: "code-agent" },
+  {
+    id: "code-agent",
+    // Runs once all retries are exhausted: unblock the UI and give the credit back.
+    onFailure: async ({ event, step }) => {
+      const { projectId, userId } = event.data.event.data;
+
+      await step.run("write-error-message", async () => {
+        return await db.message.create({
+          data: {
+            projectId,
+            content: "Generation failed. Your credit has been refunded.",
+            role: MessageRole.ASSISTANT,
+            type: MessageType.ERROR,
+          },
+        });
+      });
+
+      if (userId) {
+        await step.run("refund-credit", async () => {
+          return await refundCredits(userId);
+        });
+      }
+    },
+  },
   { event: "code-agent/run" },
 
   async ({ event, step }) => {
     // Step-1
     const sandboxId = await step.run("get-sandbox-id", async () => {
-      const sandbox = await Sandbox.create("v0-version-final-next");
+      const sandbox = await Sandbox.create("v0-version-final-next", {
+        timeoutMs: SANDBOX_TIMEOUT_MS,
+      });
       return sandbox.sandboxId;
     });
 
@@ -36,8 +67,10 @@ export const codeAgentFunction = inngest.createFunction(
             projectId:event.data.projectId
           },
           orderBy:{
-            createdAt:"desc"
-          }
+            createdAt:"asc"
+          },
+          // Negative take returns the LAST n rows while keeping ascending order.
+          take: -MAX_HISTORY_MESSAGES
         })
 
         for(const message of messages){
@@ -265,7 +298,7 @@ export const codeAgentFunction = inngest.createFunction(
       const sandbox = await Sandbox.connect(sandboxId);
       const host = sandbox.getHost(3000);
 
-      return `http://${host}`;
+      return `https://${host}`;
     });
 
     await step.run("save-result" , async()=>{
@@ -290,6 +323,7 @@ export const codeAgentFunction = inngest.createFunction(
           fragments:{
             create:{
               sandboxUrl:sandboxUrl,
+              sandboxId:sandboxId,
               title:generateFragmentTitle(),
               files:result.state.data.files
             }

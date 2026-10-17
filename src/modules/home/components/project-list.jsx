@@ -1,4 +1,5 @@
 "use client";
+import { useAuth } from "@clerk/nextjs";
 import { useGetProjects } from "@/modules/projects/hooks/project";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +16,8 @@ import React from "react";
 import Link from "next/link";
 
 const ProjectList = () => {
-  const { data: projects, isPending } = useGetProjects();
+  const { isSignedIn } = useAuth();
+  const { data: projects, isPending } = useGetProjects({ enabled: !!isSignedIn });
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString("en-US", {
@@ -24,6 +26,11 @@ const ProjectList = () => {
       year: "numeric",
     });
   };
+
+  // A disabled query stays "pending", so never show skeletons to a signed-out visitor.
+  if (!isSignedIn) {
+    return null;
+  }
 
   if (isPending) {
     return (

@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
 import { ArrowUpIcon, Loader2Icon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
 import { useState } from "react";
@@ -12,12 +13,11 @@ import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Form, FormField } from "@/components/ui/form";
-// import { onInvoke } from "../actions";
 import { useCreateMessages } from "@/modules/messages/hooks/message";
 import { useStatus } from "@/modules/usage/hooks/usage";
 import { Usage } from "@/modules/usage/components/usage";
+import { showActionError } from "@/lib/show-action-error";
 
-// import { onInvoke } from "../actions";
 
 const formSchema = z.object({
   content: z
@@ -30,6 +30,7 @@ const formSchema = z.object({
 
 const MessageForm = ({projectId}) => {
   const [isFocused, setIsFocused] = useState(false);
+  const router = useRouter();
 
   const {mutateAsync , isPending} = useCreateMessages(projectId)
 
@@ -48,13 +49,11 @@ const MessageForm = ({projectId}) => {
  
   const onSubmit = async (values) => {
     try {
-      const res = await mutateAsync(values.content)
-   
-      toast.success("Message sent successfully")
+      await mutateAsync(values.content)
       form.reset()
-      toast.success("Message Sent Successfully")
+      toast.success("Message sent successfully")
     } catch (error) {
-       toast.error(error.message || "Failed to send message");
+      showActionError(error, router, "Failed to send message");
     }
   };
 
