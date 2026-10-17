@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { MessageRole } from "@prisma/client";
 import { createMessages, getMessages } from "../actions";
 
+const POLL_INTERVAL_MS = 3000;
 
 export const prefetchMessages = async(queryClient , projectId)=>{
     await queryClient.prefetchQuery({
@@ -15,8 +17,14 @@ export const useGetMessages = (projectId)=>{
         queryKey:["messages" , projectId],
         queryFn:()=>getMessages(projectId),
         staleTime:10000,
-        refetchInterval:(data)=>{
-            return data?.length ? 5000 : false;
+        // TanStack Query v5 passes the Query object here, not the data.
+        // Poll only while the agent is still working, i.e. the last message
+        // is the user's and no assistant reply has landed yet.
+        refetchInterval:(query)=>{
+            const messages = query.state.data;
+            const lastMessage = messages?.[messages.length - 1];
+
+            return lastMessage?.role === MessageRole.USER ? POLL_INTERVAL_MS : false;
         }
     })
 }
