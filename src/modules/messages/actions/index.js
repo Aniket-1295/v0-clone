@@ -52,6 +52,7 @@ export const createMessages = async (value, projectId) => {
     data: {
       value: value,
       projectId: projectId,
+      userId: user.clerkId,
     },
   });
 

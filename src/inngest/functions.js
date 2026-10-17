@@ -12,6 +12,7 @@ import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
 import { lastAssistantTextMessageContent } from "./utils";
 
 import  db  from "@/lib/db";
+import { refundCredits } from "@/lib/usage";
 
 import { MessageRole, MessageType } from "@prisma/client";
 
@@ -21,7 +22,30 @@ const SANDBOX_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_HISTORY_MESSAGES = 20;
 
 export const codeAgentFunction = inngest.createFunction(
-  { id: "code-agent" },
+  {
+    id: "code-agent",
+    // Runs once all retries are exhausted: unblock the UI and give the credit back.
+    onFailure: async ({ event, step }) => {
+      const { projectId, userId } = event.data.event.data;
+
+      await step.run("write-error-message", async () => {
+        return await db.message.create({
+          data: {
+            projectId,
+            content: "Generation failed. Your credit has been refunded.",
+            role: MessageRole.ASSISTANT,
+            type: MessageType.ERROR,
+          },
+        });
+      });
+
+      if (userId) {
+        await step.run("refund-credit", async () => {
+          return await refundCredits(userId);
+        });
+      }
+    },
+  },
   { event: "code-agent/run" },
 
   async ({ event, step }) => {

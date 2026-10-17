@@ -50,6 +50,7 @@ export const createProject = async (value) => {
     data: {
       value: value,
       projectId: newProject.id,
+      userId: user.clerkId,
     },
   });
 
