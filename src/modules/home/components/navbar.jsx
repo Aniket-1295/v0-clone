@@ -13,39 +13,49 @@ import Image from "next/image";
 
 const Navbar = () => {
   return (
-    <nav className="p-4 bg-transparent fixed top-0 left-0 right-0 z-50 transition-all duration-200 border-b border-transparent">
-      <div className="max-w-5xl mx-auto w-full flex justify-between items-center">
-        <Link href={"/"} className="flex items-center gap-2">
+    <nav className="fixed top-0 left-0 right-0 z-50 h-14 border-b bg-background/80 backdrop-blur-md">
+      <div className="h-full w-full px-4 grid grid-cols-[1fr_auto_1fr] items-center">
+        <Link href={"/"} className="flex items-center gap-2 justify-self-start">
           <Image
             src={"/logo.svg"}
-            alt="Vibe"
-            width={32}
-            height={32}
+            alt="v0"
+            width={28}
+            height={28}
             className="shrink-0 invert dark:invert-0"
           />
         </Link>
 
-        <SignedOut>
-          <div className=" flex gap-2">
+        <div className="flex items-center gap-1 text-sm">
+          <Link
+            href="/pricing"
+            className="rounded-md px-3 py-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            Pricing
+          </Link>
+        </div>
+
+        <div className="justify-self-end flex items-center gap-2">
+          <SignedOut>
             <SignInButton>
-              <Button
-              className="cursor-pointer"
-               variant={"outline"} size={"sm"}>
-                Sign In
+              <Button className="cursor-pointer h-8" variant={"outline"} size={"sm"}>
+                Log In
               </Button>
             </SignInButton>
 
             <SignUpButton>
               <Button
-              className="cursor-pointer"
-               size={"sm"}>Sign Up</Button>
+                className="cursor-pointer h-8 bg-foreground text-background hover:bg-foreground/90"
+                size={"sm"}
+              >
+                Sign Up
+              </Button>
             </SignUpButton>
-          </div>
-        </SignedOut>
+          </SignedOut>
 
-        <SignedIn>
-          <UserButton />
-        </SignedIn>
+          <SignedIn>
+            <UserButton />
+          </SignedIn>
+        </div>
       </div>
     </nav>
   );
