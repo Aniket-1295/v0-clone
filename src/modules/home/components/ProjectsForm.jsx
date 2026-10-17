@@ -16,6 +16,7 @@ import { Form, FormField } from "@/components/ui/form";
 import { PROJECT_TEMPLATES } from "@/constant";
 
 import { useCreateProject } from "@/modules/projects/hooks/project";
+import { showActionError } from "@/lib/show-action-error";
 
 
 const formSchema = z.object({
@@ -49,7 +50,7 @@ const ProjectsForm = () => {
       toast.success("Project created successfully")
       form.reset()
     } catch (error) {
-      toast.error(error.message || "Failed to create project");
+      showActionError(error, router, "Failed to create project");
     }
   };
 

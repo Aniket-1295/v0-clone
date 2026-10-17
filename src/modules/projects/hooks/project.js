@@ -1,18 +1,22 @@
 import {useQuery , useMutation , useQueryClient} from "@tanstack/react-query"
+import { unwrap } from "@/lib/action-result"
 import { createProject , getProjectById , getProjects } from "../actions"
 
 export const useGetProjects = ()=>{
     return useQuery({
         queryKey:["projects"],
-        queryFn:()=>getProjects()
+        queryFn:async()=>unwrap(await getProjects())
     })
 }
 
 export const useCreateProject = ()=>{
     const queryClient = useQueryClient()
     return useMutation({
-       mutationFn:(value)=>createProject(value),
-        onSuccess:()=>queryClient.invalidateQueries( {queryKey:["projects","status"] })
+        mutationFn:async(value)=>unwrap(await createProject(value)),
+        onSuccess:()=>{
+            queryClient.invalidateQueries({queryKey:["projects"]})
+            queryClient.invalidateQueries({queryKey:["status"]})
+        }
     })
 }
 
@@ -20,6 +24,6 @@ export const useCreateProject = ()=>{
 export const useGetProjectById = (projectId)=>{
     return useQuery({
         queryKey:["project" , projectId],
-        queryFn:()=>getProjectById(projectId)
+        queryFn:async()=>unwrap(await getProjectById(projectId))
     })
 }
