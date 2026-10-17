@@ -1,8 +1,8 @@
 "use client";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, Loader2Icon } from "lucide-react";
+import { ArrowUpIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
@@ -46,6 +46,8 @@ const MessageForm = ({projectId}) => {
     mode:"onChange"
   });
 
+  const content = useWatch({ control: form.control, name: "content" }) ?? "";
+
  
   const onSubmit = async (values) => {
     try {
@@ -70,8 +72,9 @@ const MessageForm = ({projectId}) => {
         <form
           onSubmit={form.handleSubmit(onSubmit)}
           className={cn(
-            "relative border p-4 pt-1 rounded-xl bg-sidebar dark:bg-sidebar transition-all",
-            isFocused && "shadow-lg ring-2 ring-primary/20"
+            "relative rounded-xl border bg-card px-3 pb-3 pt-1 shadow-sm transition-colors",
+            showUsage && "rounded-t-none",
+            isFocused && "border-foreground/30"
           )}
         >
          <FormField
@@ -81,13 +84,17 @@ const MessageForm = ({projectId}) => {
                 <TextAreaAutosize
                 {...field}
                 disabled={isPending}
-                placeholder="Describe what you want to create..."
+                aria-label="Ask for a change"
+                placeholder="Ask v0 to change something..."
                 onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                minRows={3}
+                onBlur={() => {
+                  setIsFocused(false);
+                  field.onBlur();
+                }}
+                minRows={2}
                 maxRows={8}
                 className={cn(
-                  "pt-4 resize-none border-none w-full outline-none bg-transparent",
+                  "pt-3 px-1 resize-none border-none w-full outline-none bg-transparent text-sm placeholder:text-muted-foreground",
                   isPending && "opacity-50"
                 )}
                 onKeyDown={(e) => {
@@ -98,26 +105,24 @@ const MessageForm = ({projectId}) => {
                 }}
               />
          )}
-         />   
+         />
 
-         <div className="flex gap-x-2 items-end justify-between pt-2">
-            <div className="text-[10px] text-muted-foreground font-mono">
-                 <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+         <div className="flex gap-x-2 items-center justify-between pt-2">
+            <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-1.5">
+              <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
                 <span>&#8984;</span>Enter
               </kbd>
-              &nbsp; to submit
+              to send
             </div>
             <Button
-            className={cn("size-8 rounded-full" , 
-              isPending && "bg-muted-foreground border"
-            )}
-            disabled={isPending}
+            aria-label="Send message"
+            className="ml-auto size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+            disabled={isPending || !content.trim()}
             type="submit"
             >
               {
                 isPending ? (<Spinner/>) : (<ArrowUpIcon className="size-4"/>)
               }
-                
             </Button>
          </div>
         </form>

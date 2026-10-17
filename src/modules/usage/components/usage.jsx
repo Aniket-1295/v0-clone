@@ -13,14 +13,14 @@ export const Usage = () => {
 
   if (isPending) {
     return (
-      <div className="rounded-t-xl bg-background border border-b-0 p-2.5">
-        <Spinner className={"text-emerald-400"} />
+      <div className="rounded-t-xl bg-muted/50 border border-b-0 px-3 py-2">
+        <Spinner className={"text-muted-foreground"} />
       </div>
     );
   }
   if (error) {
     return (
-      <div className="rounded-t-xl bg-background border border-b-0 p-2.5">
+      <div className="rounded-t-xl bg-muted/50 border border-b-0 px-3 py-2">
         <p className="text-sm text-destructive">Error loading usage</p>
       </div>
     );
@@ -30,10 +30,10 @@ export const Usage = () => {
   const msBeforeNext = data?.msBeforeNext ?? 0;
 
   return (
-    <div className="rounded-t-xl bg-background border border-b-0 p-2.5">
+    <div className="rounded-t-xl bg-muted/50 border border-b-0 px-3 py-2">
       <div className="flex items-center gap-x-2">
         <div>
-          <p className="text-sm">{points} credits remaining</p>
+          <p className="text-xs font-medium">{points} credits remaining</p>
           <p className="text-xs text-muted-foreground">
             Resets in{" "}
             {formatDuration(
@@ -46,7 +46,7 @@ export const Usage = () => {
           </p>
         </div>
         {!hasProAccess && (
-          <Button asChild size={"sm"} variant={"default"} className={"ml-auto"}>
+          <Button asChild size={"sm"} variant={"outline"} className={"ml-auto h-7 text-xs"}>
             <Link href={"/pricing"}>
               <CrownIcon /> Upgrade
             </Link>

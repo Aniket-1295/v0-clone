@@ -9,105 +9,197 @@ import {
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
 import ProjectHeader from "./project-header";
 import MessageContainer from "./message-container";
-import { Code, CrownIcon, EyeIcon } from "lucide-react";
+import {
+  Code,
+  CrownIcon,
+  ExternalLink,
+  EyeIcon,
+  MessageSquare,
+  MonitorIcon,
+  RefreshCcw,
+} from "lucide-react";
 import FragmentWeb from "./fragment-web";
 import { FileExplorer } from "./file-explorer";
+import { Hint } from "@/components/ui/hint";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
+const EmptyPane = ({ icon: Icon, text }) => (
+  <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+    <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
+      <Icon className="size-5" />
+    </div>
+    <p className="text-sm">{text}</p>
+  </div>
+);
 
-const ProjectView = ({ projectId }) => {
+const PreviewPane = ({ activeFragment, tabState, setTabState }) => {
+  const [previewKey, setPreviewKey] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const sandboxUrl = activeFragment?.sandboxUrl;
 
-  const [activeFragment, setActiveFragment] = useState(null);
-  const [tabState, setTabState] = useState("preview");
-
-  
+  const onCopy = () => {
+    navigator.clipboard.writeText(sandboxUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="h-screen">
-      <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel
-          defaultSize={35}
-          minSize={20}
-          className="flex flex-col min-h-0"
-        >
-          <ProjectHeader projectId={projectId} />
+    <Tabs
+      className="h-full gap-0 flex flex-col overflow-hidden rounded-lg border bg-card"
+      value={tabState}
+      onValueChange={setTabState}
+    >
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
+        <TabsList className="h-8 p-0.5">
+          <TabsTrigger value="preview" className="h-7 px-2.5 gap-1.5 text-xs">
+            <EyeIcon className="size-3.5" />
+            Preview
+          </TabsTrigger>
+          <TabsTrigger value="code" className="h-7 px-2.5 gap-1.5 text-xs">
+            <Code className="size-3.5" />
+            Code
+          </TabsTrigger>
+        </TabsList>
 
-          <MessageContainer
-            projectId={projectId}
-            activeFragment={activeFragment}
-            setActiveFragment={setActiveFragment}
-          />
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={65} minSize={50}>
-          <Tabs
-            className={"h-full flex flex-col"}
-            defaultValue="preview"
-            value={tabState}
-            onValueChange={(value) => setTabState(value)}
-          >
-            <div className="w-full flex items-center p-2 border-b gap-x-2">
-              <TabsList className={"h-8 p-0 border rounded-md"}>
-                <TabsTrigger
-                  value="preview"
-                  className={"rounded-md px-3 flex items-center gap-x-2"}
-                >
-                  <EyeIcon className="size-4" />
-                  <span>Demo</span>
-                </TabsTrigger>
+        {tabState === "preview" && sandboxUrl && (
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <Hint text="Refresh" side="bottom">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                aria-label="Refresh preview"
+                onClick={() => setPreviewKey((key) => key + 1)}
+              >
+                <RefreshCcw className="size-3.5" />
+              </Button>
+            </Hint>
+            <Hint text={copied ? "Copied" : "Copy URL"} side="bottom">
+              <button
+                type="button"
+                onClick={onCopy}
+                className="flex h-8 min-w-0 flex-1 items-center rounded-md border bg-background px-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <span className="truncate">{sandboxUrl}</span>
+              </button>
+            </Hint>
+            <Hint text="Open in new tab" side="bottom">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                aria-label="Open preview in new tab"
+                onClick={() => window.open(sandboxUrl, "_blank")}
+              >
+                <ExternalLink className="size-3.5" />
+              </Button>
+            </Hint>
+          </div>
+        )}
+      </div>
 
-                <TabsTrigger
-                  value="code"
-                  className={"rounded-md px-3 flex items-center gap-x-2"}
-                >
-                  <Code className="size-4" />
-                  <span>Code</span>
-                </TabsTrigger>
-              </TabsList>
+      <TabsContent value="preview" className="min-h-0 flex-1 bg-background">
+        {activeFragment ? (
+          <FragmentWeb data={activeFragment} refreshKey={previewKey} />
+        ) : (
+          <EmptyPane icon={MonitorIcon} text="Your preview will appear here" />
+        )}
+      </TabsContent>
 
-              <div className="ml-auto flex items-center gap-x-2">
-                <Button asChild size={"sm"}>
-                  <Link href={"/pricing"}>
-                    <CrownIcon className="size-4 mr-2" />
-                    Upgrade
-                  </Link>
-                </Button>
-              </div>
-            </div>
+      <TabsContent value="code" className="min-h-0 flex-1">
+        {activeFragment?.files ? (
+          <FileExplorer files={activeFragment.files} />
+        ) : (
+          <EmptyPane icon={Code} text="Generated code will appear here" />
+        )}
+      </TabsContent>
+    </Tabs>
+  );
+};
 
-            <TabsContent
-              value="preview"
-              className={"flex-1 h-[calc(100%-4rem)] overflow-hidden"}
-            >
-              {activeFragment ? (
-                <>
-                <FragmentWeb data={activeFragment}/>
-                </>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Select a fragment to preview
-                </div>
-              )}
-            </TabsContent>
+const ProjectView = ({ projectId }) => {
+  const [activeFragment, setActiveFragment] = useState(null);
+  const [tabState, setTabState] = useState("preview");
+  // Phones get one pane at a time instead of side-by-side panels.
+  const [mobilePane, setMobilePane] = useState("chat");
+  const isMobile = useIsMobile();
 
-            <TabsContent value="code"
-            className={"flex-1 h-[calc(100%-4rem)] overflow-hidden"}
-            >
-              {
-                activeFragment?.files ? (
-                  <FileExplorer files={activeFragment.files}/>
-                ):(
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    Select a fragment to view code
-                  </div>
-                )
-              }
-            </TabsContent>
-          </Tabs>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+  const chat = (
+    <MessageContainer
+      projectId={projectId}
+      activeFragment={activeFragment}
+      setActiveFragment={setActiveFragment}
+      onFragmentOpen={() => {
+        setTabState("preview");
+        setMobilePane("preview");
+      }}
+    />
+  );
+
+  const preview = (
+    <PreviewPane
+      activeFragment={activeFragment}
+      tabState={tabState}
+      setTabState={setTabState}
+    />
+  );
+
+  return (
+    <div className="h-dvh flex flex-col bg-background">
+      <ProjectHeader projectId={projectId}>
+        {isMobile && (
+          <div className="flex rounded-md border p-0.5">
+            {[
+              { value: "chat", icon: MessageSquare, label: "Chat" },
+              { value: "preview", icon: EyeIcon, label: "Preview" },
+            ].map(({ value, icon: Icon, label }) => (
+              <button
+                key={value}
+                type="button"
+                aria-label={label}
+                aria-pressed={mobilePane === value}
+                onClick={() => setMobilePane(value)}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-[5px] text-muted-foreground transition-colors cursor-pointer",
+                  mobilePane === value && "bg-accent text-foreground"
+                )}
+              >
+                <Icon className="size-3.5" />
+              </button>
+            ))}
+          </div>
+        )}
+        <Button asChild size="sm" variant="outline" className="h-8">
+          <Link href={"/pricing"}>
+            <CrownIcon className="size-3.5" />
+            Upgrade
+          </Link>
+        </Button>
+      </ProjectHeader>
+
+      {isMobile ? (
+        <div className="min-h-0 flex-1">
+          <div className={cn("h-full flex flex-col", mobilePane !== "chat" && "hidden")}>
+            {chat}
+          </div>
+          <div className={cn("h-full p-2", mobilePane !== "preview" && "hidden")}>
+            {preview}
+          </div>
+        </div>
+      ) : (
+        <ResizablePanelGroup direction="horizontal" className="min-h-0 flex-1">
+          <ResizablePanel defaultSize={35} minSize={25} className="flex flex-col min-h-0">
+            {chat}
+          </ResizablePanel>
+          <ResizableHandle className="bg-transparent hover:bg-border transition-colors" />
+          <ResizablePanel defaultSize={65} minSize={40} className="p-2 pl-0">
+            {preview}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
     </div>
   );
 };
