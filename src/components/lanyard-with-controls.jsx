@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import LiveDateText from './LiveLocationText';
@@ -170,6 +170,8 @@ function LanyardString() {
     );
 }
 
+const subscribeToNothing = () => () => {};
+
 export default function LanyardWithControls({
     containerClassName,
     defaultName = '',
@@ -177,12 +179,13 @@ export default function LanyardWithControls({
     const [name, setName] = useState(defaultName);
     const [inputValue, setInputValue] = useState(defaultName);
     const [variant, setVariant] = useState('dark');
-    const [mounted, setMounted] = useState(false);
+    // false during SSR and hydration, true once on the client; avoids setState in an effect.
+    const mounted = useSyncExternalStore(
+        subscribeToNothing,
+        () => true,
+        () => false
+    );
     const maxLen = 20;
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
 
     if (!mounted) {
         return (
