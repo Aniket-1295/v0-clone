@@ -15,6 +15,11 @@ import  db  from "@/lib/db";
 
 import { MessageRole, MessageType } from "@prisma/client";
 
+// E2B kills sandboxes after 5 minutes by default; keep previews alive for 30.
+const SANDBOX_TIMEOUT_MS = 30 * 60 * 1000;
+// Only the most recent messages are replayed to the agent as context.
+const MAX_HISTORY_MESSAGES = 20;
+
 export const codeAgentFunction = inngest.createFunction(
   { id: "code-agent" },
   { event: "code-agent/run" },
@@ -22,7 +27,9 @@ export const codeAgentFunction = inngest.createFunction(
   async ({ event, step }) => {
     // Step-1
     const sandboxId = await step.run("get-sandbox-id", async () => {
-      const sandbox = await Sandbox.create("v0-version-final-next");
+      const sandbox = await Sandbox.create("v0-version-final-next", {
+        timeoutMs: SANDBOX_TIMEOUT_MS,
+      });
       return sandbox.sandboxId;
     });
 
@@ -36,8 +43,10 @@ export const codeAgentFunction = inngest.createFunction(
             projectId:event.data.projectId
           },
           orderBy:{
-            createdAt:"desc"
-          }
+            createdAt:"asc"
+          },
+          // Negative take returns the LAST n rows while keeping ascending order.
+          take: -MAX_HISTORY_MESSAGES
         })
 
         for(const message of messages){
@@ -265,7 +274,7 @@ export const codeAgentFunction = inngest.createFunction(
       const sandbox = await Sandbox.connect(sandboxId);
       const host = sandbox.getHost(3000);
 
-      return `http://${host}`;
+      return `https://${host}`;
     });
 
     await step.run("save-result" , async()=>{
@@ -290,6 +299,7 @@ export const codeAgentFunction = inngest.createFunction(
           fragments:{
             create:{
               sandboxUrl:sandboxUrl,
+              sandboxId:sandboxId,
               title:generateFragmentTitle(),
               files:result.state.data.files
             }
