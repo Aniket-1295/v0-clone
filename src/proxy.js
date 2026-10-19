@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api(.*)",
+  "/templates(.*)",
 ])
 
 // Next 16 renamed middleware.js to proxy.js; it must export `proxy`.
