@@ -1,13 +1,11 @@
 "use client";
 import React from "react";
 import Link from "next/link";
-import { SignedIn } from "@clerk/nextjs";
 import { ChevronRight, LayoutGrid } from "lucide-react";
 
 import { TEMPLATES } from "@/templates/registry";
 import ProjectsForm, { usePromptForm } from "./ProjectsForm";
 import PromptChips from "./prompt-chips";
-import ProjectList from "./project-list";
 import TemplateSection from "./template-section";
 import FeaturesSection from "./features-section";
 import MobileShowcase from "./mobile-showcase";
@@ -55,11 +53,6 @@ const HomeView = () => {
         </section>
 
         <div className="mx-auto max-w-6xl space-y-24 pb-24 md:space-y-32">
-          {/* getProjects requires a session; anonymous visitors used to trigger a 500 per visit. */}
-          <SignedIn>
-            <ProjectList />
-          </SignedIn>
-
           <TemplateSection />
           <FeaturesSection />
           <MobileShowcase />
