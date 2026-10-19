@@ -26,7 +26,7 @@ const ShimmerMessages = () => {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-base text-muted-foreground animate-pulse">
+      <span className="text-sm text-muted-foreground animate-pulse">
         {messages[currentMessageIndex]}
       </span>
     </div>
@@ -35,21 +35,20 @@ const ShimmerMessages = () => {
 
 const MessageLoading = () => {
   return (
-    <div className="flex flex-col group px-2 pb-4">
-      <div
-        className="flex items-center gap-2 pl-2 mb-2
-        "
-      >
-        <Image
-          src={"/logo.svg"}
-          alt="Vibe"
-          width={28}
-          height={28}
-          className="shrink-0 invert dark:invert-0"
-        />
+    <div className="flex flex-col">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex size-6 items-center justify-center rounded-md border bg-card">
+          <Image
+            src={"/logo.svg"}
+            alt="v0"
+            width={14}
+            height={14}
+            className="shrink-0 invert dark:invert-0"
+          />
+        </div>
       </div>
 
-      <div className="pl-8.5 flex flex-col gap-y-4">
+      <div className="pl-8 flex flex-col gap-y-4">
         <ShimmerMessages />
       </div>
     </div>

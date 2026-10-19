@@ -1,48 +1,41 @@
 import { Response } from "@/components/ai-elements/response";
-import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { MessageRole, MessageType } from "@prisma/client";
 import { format } from "date-fns";
-import { ChevronRightIcon, Code2Icon } from "lucide-react";
+import { AlertCircleIcon, ChevronRightIcon, Code2Icon } from "lucide-react";
 import Image from "next/image";
 import React from "react";
 
 const FragmentCard = ({ fragment, isActiveFragment, onFragmentClick }) => {
   return (
     <button
+      type="button"
       className={cn(
-        "flex items-start text-start gap-2 border rounded-lg bg-muted w-fit p-2 hover:bg-secondary transition-colors",
-        isActiveFragment &&
-          "bg-primary text-primary-foreground border-primary hover:bg-primary"
+        "flex w-full max-w-sm items-center gap-3 rounded-lg border bg-card p-2 pr-3 text-start transition-colors hover:bg-accent cursor-pointer",
+        isActiveFragment && "border-foreground/40 bg-accent"
       )}
       onClick={() => onFragmentClick(fragment)}
     >
-      <Code2Icon className="size-4 mt-0.5" />
-      <div className="flex flex-col flex-1">
-        <span className="text-sm font-medium line-clamp-1">
-          {fragment.title}
-        </span>
-        <span className="text-sm">Preview</span>
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
+        <Code2Icon className="size-4" />
       </div>
-      <div className="flex items-center justify-center mt-0.5">
-        <span className="text-sm">
-          <ChevronRightIcon className="size-4" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-medium line-clamp-1">{fragment.title}</span>
+        <span className="text-xs text-muted-foreground">
+          {isActiveFragment ? "Showing in preview" : "Open preview"}
         </span>
       </div>
+      <ChevronRightIcon className="size-4 text-muted-foreground" />
     </button>
   );
 };
 
 const UserMessage = ({ content }) => {
   return (
-    <div className="flex justify-end pb-4 pr-2 pl-10">
-      <Card
-        className={
-          "rounded-lg bg-muted p-2 shadow-none border-none max-w-[80%] break-words"
-        }
-      >
+    <div className="flex justify-end pl-10">
+      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-xl bg-muted px-3 py-2 text-sm">
         {content}
-      </Card>
+      </div>
     </div>
   );
 };
@@ -55,30 +48,34 @@ const AssistantMessage = ({
   onFragmentClick,
   type,
 }) => {
+  const isError = type === MessageType.ERROR;
+
   return (
-    <div
-      className={cn(
-        "flex flex-col group px-2 pb-4",
-        type === MessageType.ERROR && "text-red-700 dark:text-red-500"
-      )}
-    >
-      <div className="flex items-center gap-2 pl-2 mb-2">
-        <Image
-        
-          alt="Vibe"
-          src={"/logo.svg"}
-          height={30}
-          width={30}
-          className="invert dark:invert-0"
-        />
+    <div className="group flex flex-col">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex size-6 items-center justify-center rounded-md border bg-card">
+          <Image
+            alt="v0"
+            src={"/logo.svg"}
+            height={14}
+            width={14}
+            className="invert dark:invert-0"
+          />
+        </div>
         <span className="text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
           {format(new Date(createdAt), "HH:mm 'on' MMM dd, yyyy")}
         </span>
       </div>
 
-      <div className="pl-8.5 flex flex-col gap-y-4">
-        {/* {content} */}
-       <Response>{content}</Response>
+      <div className="flex flex-col gap-y-3 pl-8 text-sm">
+        {isError ? (
+          <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-700 dark:text-red-400">
+            <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
+            <span>{content}</span>
+          </div>
+        ) : (
+          <Response>{content}</Response>
+        )}
         {fragment && type === MessageType.RESULT && (
           <FragmentCard
             fragment={fragment}
@@ -113,11 +110,7 @@ const MessageCard = ({
     );
   }
 
-  return (
-    <div className="mt-5">
-      <UserMessage content={content} />
-    </div>
-  );
+  return <UserMessage content={content} />;
 };
 
 export default MessageCard;

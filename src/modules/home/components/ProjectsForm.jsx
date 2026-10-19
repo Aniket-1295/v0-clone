@@ -1,23 +1,21 @@
 "use client";
-import React from "react";
-import { useForm } from "react-hook-form";
+import React, { useRef, useState, useSyncExternalStore } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, Loader2Icon } from "lucide-react";
+import { ArrowUpIcon, MicIcon, SquareIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useState } from "react";
 import z from "zod";
 import { Spinner } from "@/components/ui/spinner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { Form, FormField } from "@/components/ui/form";
-import { PROJECT_TEMPLATES } from "@/constant";
 
 import { useCreateProject } from "@/modules/projects/hooks/project";
 import { showActionError } from "@/lib/show-action-error";
-
 
 const formSchema = z.object({
   content: z
@@ -26,12 +24,9 @@ const formSchema = z.object({
     .max(1000, "Description is too long"),
 });
 
-const ProjectsForm = () => {
-  const [isFocused, setIsFocused] = useState(false);
-  const router = useRouter();
-  const {mutateAsync , isPending} = useCreateProject()
-
-  const form = useForm({
+/** The prompt form state, created by the page so starters elsewhere can fill it. */
+export const usePromptForm = () =>
+  useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       content: "",
@@ -39,120 +34,133 @@ const ProjectsForm = () => {
     mode: "onChange",
   });
 
-  const handleTemplate = (prompt) => {
-    form.setValue("content", prompt);
-  };
+const getRecognition = () =>
+  typeof window === "undefined" ? null : window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
+// Whether the browser supports speech input; false during SSR to avoid a hydration mismatch.
+const useSpeechSupported = () =>
+  useSyncExternalStore(
+    () => () => {},
+    () => !!getRecognition(),
+    () => false
+  );
+
+const ProjectsForm = ({ form }) => {
+  const [isFocused, setIsFocused] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+  const router = useRouter();
+  const { mutateAsync, isPending } = useCreateProject();
+  const speechSupported = useSpeechSupported();
+  const content = useWatch({ control: form.control, name: "content" }) ?? "";
+  const hasText = content.trim().length > 0;
 
   const onSubmit = async (values) => {
     try {
-      const res = await mutateAsync(values.content)
-      router.push(`/projects/${res.id}`)
-      toast.success("Project created successfully")
-      form.reset()
+      const res = await mutateAsync(values.content);
+      router.push(`/projects/${res.id}`);
+      toast.success("Project created successfully");
+      form.reset();
     } catch (error) {
       showActionError(error, router, "Failed to create project");
     }
   };
 
-  const isButtonDisabled = isPending || !form.watch("content").trim()
+  const toggleVoice = () => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const Recognition = getRecognition();
+    if (!Recognition) return;
 
-
+    const recognition = new Recognition();
+    const base = form.getValues("content");
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.lang = navigator.language || "en-US";
+    recognition.onresult = (event) => {
+      const spoken = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join("");
+      form.setValue("content", [base, spoken].filter(Boolean).join(" "), { shouldValidate: true });
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "not-allowed") toast.error("Microphone access was blocked.");
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Template Grid */}
-
-      
-
-      {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {PROJECT_TEMPLATES.map((template, index) => (
-          <button
-            key={index}
-            onClick={() => handleTemplate(template.prompt)}
-            // disabled={isPending}
-            className="group relative p-4 rounded-xl border bg-card hover:bg-accent/50 transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md hover:border-primary/30"
-          >
-            <div className="flex flex-col gap-2">
-              <span className="text-3xl" role="img" aria-label={template.title}>
-                {template.emoji}
-              </span>
-              <h3 className="text-sm font-medium group-hover:text-primary transition-colors">
-                {template.title}
-              </h3>
-            </div>
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-          </button>
-        ))}
-      </div>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Or describe your own idea
-          </span>
-        </div>
-      </div> */}
-
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className={cn(
-            "relative border p-4 pt-1 rounded-xl bg-sidebar dark:bg-sidebar transition-all",
-            isFocused && "shadow-lg ring-2 ring-primary/20"
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className={cn(
+          "relative rounded-xl border bg-card px-3 pb-3 pt-1 shadow-sm transition-colors dark:bg-neutral-950",
+          isFocused && "border-foreground/30"
+        )}
+      >
+        <FormField
+          control={form.control}
+          name="content"
+          render={({ field }) => (
+            <TextAreaAutosize
+              {...field}
+              aria-label="Describe what you want to build"
+              placeholder={listening ? "Listening..." : "Ask v0 to build..."}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => {
+                setIsFocused(false);
+                field.onBlur();
+              }}
+              minRows={2}
+              maxRows={10}
+              className="pt-3 px-1 resize-none border-none w-full outline-none bg-transparent text-sm md:text-base placeholder:text-muted-foreground"
+              onKeyDown={(e) => {
+                // Enter sends, Shift+Enter adds a new line.
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  if (hasText && !isPending) form.handleSubmit(onSubmit)(e);
+                }
+              }}
+            />
           )}
-        >
-          <FormField
-            control={form.control}
-            name="content"
-            render={({ field }) => (
-              <TextAreaAutosize
-                {...field}
-                // disabled={isPending}
-                placeholder="Describe what you want to create..."
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                minRows={3}
-                maxRows={8}
-                className={cn(
-                  "pt-4 resize-none border-none w-full outline-none bg-transparent"
-                  //   isPending && "opacity-50"
-                )}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    form.handleSubmit(onSubmit)(e);
-                  }
-                }}
-              />
-            )}
-          />
+        />
 
-          <div className="flex gap-x-2 items-end justify-between pt-2">
-            <div className="text-[10px] text-muted-foreground font-mono">
-              <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-                <span>&#8984;</span>Enter
-              </kbd>
-              &nbsp; to submit
-            </div>
-            <Button
-            className={cn("size-8 rounded-full" , 
-              isButtonDisabled && "bg-muted-foreground border"
+        <div className="flex gap-x-2 items-center justify-between pt-2">
+          <p className="text-xs text-muted-foreground hidden sm:block">
+            Shift + Enter for a new line
+          </p>
+          <div className="ml-auto flex items-center gap-1.5">
+            {speechSupported && (
+              <Hint text={listening ? "Stop dictation" : "Dictate"} side="bottom">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label={listening ? "Stop dictation" : "Start dictation"}
+                  aria-pressed={listening}
+                  onClick={toggleVoice}
+                  className={cn("size-8 rounded-md cursor-pointer", listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20")}
+                >
+                  {listening ? <SquareIcon className="size-3.5 fill-current" /> : <MicIcon className="size-4" />}
+                </Button>
+              </Hint>
             )}
-            disabled={isButtonDisabled}
-            type="submit"
+            <Button
+              aria-label="Create project"
+              className="size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+              disabled={isPending || !hasText}
+              type="submit"
             >
-              {
-                isPending ? (<Spinner/>) : (<ArrowUpIcon className="size-4"/>)
-              }
-                
+              {isPending ? <Spinner /> : <ArrowUpIcon className="size-4" />}
             </Button>
           </div>
-        </form>
-      </Form>
-    </div>
+        </div>
+      </form>
+    </Form>
   );
 };
 

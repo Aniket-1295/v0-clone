@@ -10,7 +10,7 @@ import {
   import MessageForm from "./message-form";
   import MessageLoading from "./message-loader";
   
-  const MessageContainer = ({ projectId, activeFragment, setActiveFragment }) => {
+  const MessageContainer = ({ projectId, activeFragment, setActiveFragment, onFragmentOpen }) => {
     const queryClient = useQueryClient();
     const bottomRef = useRef(null);
     const lastAssistantMessageIdRef = useRef(null);
@@ -46,7 +46,7 @@ import {
     if (isPending) {
       return (
         <div className="flex items-center justify-center h-full">
-          <Spinner className={"text-emerald-400"} />
+          <Spinner className={"text-muted-foreground"} />
         </div>
       );
     }
@@ -62,8 +62,8 @@ import {
     if (!messages || messages.length === 0) {
       return (
         <div className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            No Messages yet. Start a conversation!
+          <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+            No messages yet. Describe what you want to build.
           </div>
           <div className="relative p-3 pt-1">
             <div className="absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-transparent to-background pointer-events-none" />
@@ -79,6 +79,7 @@ import {
     return (
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-5">
           {messages.map((message) => (
             <MessageCard 
             key={message.id}
@@ -87,17 +88,23 @@ import {
             fragment={message.fragments}
             createdAt={message.createdAt}
             isActiveFragment={activeFragment?.id === message.fragments?.id}
-            onFragmentClick={()=>setActiveFragment(message.fragments)}
+            onFragmentClick={()=>{
+              setActiveFragment(message.fragments)
+              onFragmentOpen?.()
+            }}
             type={message.type}
             />
           ))}
           {isLastMessageUser && <MessageLoading/>}
           <div ref={bottomRef}/>
+          </div>
         </div>
   
-        <div className="relative p-2 pt-1">
+        <div className="relative p-3 pt-1">
              <div className="absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-transparent to-background pointer-events-none" />
-             <MessageForm projectId={projectId}/>
+             <div className="mx-auto max-w-3xl">
+               <MessageForm projectId={projectId}/>
+             </div>
         </div>
       </div>
     );
