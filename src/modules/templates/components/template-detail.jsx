@@ -24,7 +24,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { showActionError } from "@/lib/show-action-error";
 import { CodeView } from "@/modules/projects/components/code-view";
-import { useCreateProjectFromTemplate } from "@/modules/projects/hooks/project";
+import { useCreateChatFromTemplate } from "@/modules/chats/hooks/chat";
 import { getCategoryLabel } from "@/templates/registry";
 import TemplateCard from "./template-card";
 
@@ -36,15 +36,15 @@ const DEVICES = [
 
 const UseTemplateButton = ({ template }) => {
   const router = useRouter();
-  const { mutateAsync, isPending } = useCreateProjectFromTemplate();
+  const { mutateAsync, isPending } = useCreateChatFromTemplate();
 
   const onUse = async () => {
     try {
-      const project = await mutateAsync(template.slug);
-      toast.success(`${template.name} added to your projects`);
-      router.push(`/projects/${project.id}?tab=code`);
+      const chat = await mutateAsync([template.slug]);
+      toast.success(`Duplicated ${template.name}`);
+      router.push(`/chat/${chat.id}?tab=code`);
     } catch (error) {
-      showActionError(error, router, "Could not start a project from this template");
+      showActionError(error, router, "Could not duplicate this template");
     }
   };
 
@@ -55,12 +55,12 @@ const UseTemplateButton = ({ template }) => {
       <SignedIn>
         <Button onClick={onUse} disabled={isPending} className={className}>
           {isPending && <Spinner />}
-          Use template
+          Duplicate
         </Button>
       </SignedIn>
       <SignedOut>
         <SignInButton mode="modal">
-          <Button className={className}>Use template</Button>
+          <Button className={className}>Duplicate</Button>
         </SignInButton>
       </SignedOut>
     </>

@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * A live, non-interactive render of a template: the real preview page in an iframe at
- * desktop (or phone) size, scaled down to fit its box.
+ * A live, non-interactive render of a template (or any page via `src`): the real page in an
+ * iframe at desktop (or phone) size, scaled down to fit its box.
  */
-export default function TemplateThumbnail({ slug, mobile = false, className }) {
+export default function TemplateThumbnail({ slug, src, mobile = false, className }) {
   const boxRef = useRef(null);
   const [scale, setScale] = useState(0);
   const width = mobile ? 390 : 1280;
@@ -28,7 +28,7 @@ export default function TemplateThumbnail({ slug, mobile = false, className }) {
     >
       {scale > 0 && (
         <iframe
-          src={`/templates-preview/${slug}`}
+          src={src ?? `/templates-preview/${slug}`}
           title=""
           aria-hidden
           tabIndex={-1}

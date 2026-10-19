@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useState, useSyncExternalStore } from "react";
+import React, { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Form, FormField } from "@/components/ui/form";
 
-import { useCreateProject } from "@/modules/projects/hooks/project";
+import { useCreateChat } from "@/modules/chats/hooks/chat";
+import { useSpeechInput } from "@/hooks/use-speech-input";
 import { showActionError } from "@/lib/show-action-error";
 
 const formSchema = z.object({
@@ -34,64 +35,26 @@ export const usePromptForm = () =>
     mode: "onChange",
   });
 
-const getRecognition = () =>
-  typeof window === "undefined" ? null : window.SpeechRecognition || window.webkitSpeechRecognition || null;
-
-// Whether the browser supports speech input; false during SSR to avoid a hydration mismatch.
-const useSpeechSupported = () =>
-  useSyncExternalStore(
-    () => () => {},
-    () => !!getRecognition(),
-    () => false
-  );
-
 const ProjectsForm = ({ form }) => {
   const [isFocused, setIsFocused] = useState(false);
-  const [listening, setListening] = useState(false);
-  const recognitionRef = useRef(null);
   const router = useRouter();
-  const { mutateAsync, isPending } = useCreateProject();
-  const speechSupported = useSpeechSupported();
+  const { mutateAsync, isPending } = useCreateChat();
+  const { supported: speechSupported, listening, toggle: toggleVoice } = useSpeechInput({
+    getBase: () => form.getValues("content"),
+    onText: (text) => form.setValue("content", text, { shouldValidate: true }),
+  });
   const content = useWatch({ control: form.control, name: "content" }) ?? "";
   const hasText = content.trim().length > 0;
 
   const onSubmit = async (values) => {
     try {
-      const res = await mutateAsync(values.content);
-      router.push(`/projects/${res.id}`);
-      toast.success("Project created successfully");
+      const chat = await mutateAsync([values.content, null]);
+      router.push(`/chat/${chat.id}`);
+      toast.success("Chat started");
       form.reset();
     } catch (error) {
-      showActionError(error, router, "Failed to create project");
+      showActionError(error, router, "Failed to start the chat");
     }
-  };
-
-  const toggleVoice = () => {
-    if (listening) {
-      recognitionRef.current?.stop();
-      return;
-    }
-    const Recognition = getRecognition();
-    if (!Recognition) return;
-
-    const recognition = new Recognition();
-    const base = form.getValues("content");
-    recognition.interimResults = true;
-    recognition.continuous = true;
-    recognition.lang = navigator.language || "en-US";
-    recognition.onresult = (event) => {
-      const spoken = Array.from(event.results)
-        .map((result) => result[0].transcript)
-        .join("");
-      form.setValue("content", [base, spoken].filter(Boolean).join(" "), { shouldValidate: true });
-    };
-    recognition.onerror = (event) => {
-      if (event.error === "not-allowed") toast.error("Microphone access was blocked.");
-    };
-    recognition.onend = () => setListening(false);
-    recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
   };
 
   return (

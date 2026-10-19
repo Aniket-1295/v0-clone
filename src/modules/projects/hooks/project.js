@@ -1,41 +1,45 @@
-import {useQuery , useMutation , useQueryClient} from "@tanstack/react-query"
-import { unwrap } from "@/lib/action-result"
-import { createProject , createProjectFromTemplate , getProjectById , getProjects } from "../actions"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { unwrap } from "@/lib/action-result";
+import {
+  createProject,
+  deleteProject,
+  getProjectById,
+  getProjects,
+  renameProject,
+  setProjectStarred,
+} from "../actions";
 
-export const useGetProjects = ({ enabled = true } = {})=>{
-    return useQuery({
-        queryKey:["projects"],
-        queryFn:async()=>unwrap(await getProjects()),
-        enabled
-    })
-}
+export const useGetProjects = ({ enabled = true } = {}) =>
+  useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => unwrap(await getProjects()),
+    enabled,
+  });
 
-export const useCreateProject = ()=>{
-    const queryClient = useQueryClient()
-    return useMutation({
-        mutationFn:async(value)=>unwrap(await createProject(value)),
-        onSuccess:()=>{
-            queryClient.invalidateQueries({queryKey:["projects"]})
-            queryClient.invalidateQueries({queryKey:["status"]})
-        }
-    })
-}
+export const useGetProjectById = (projectId, { enabled = true } = {}) =>
+  useQuery({
+    queryKey: ["projects", projectId],
+    queryFn: async () => unwrap(await getProjectById(projectId)),
+    enabled: enabled && !!projectId,
+  });
 
+// Every project mutation refreshes project lists, project pages and chat lists.
+const useProjectMutation = (fn) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (args) => unwrap(await fn(...args)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+    },
+  });
+};
 
-export const useGetProjectById = (projectId)=>{
-    return useQuery({
-        queryKey:["project" , projectId],
-        queryFn:async()=>unwrap(await getProjectById(projectId))
-    })
-}
-
-
-export const useCreateProjectFromTemplate = ()=>{
-    const queryClient = useQueryClient()
-    return useMutation({
-        mutationFn:async(slug)=>unwrap(await createProjectFromTemplate(slug)),
-        onSuccess:()=>{
-            queryClient.invalidateQueries({queryKey:["projects"]})
-        }
-    })
-}
+/** mutateAsync([name]) */
+export const useCreateProject = () => useProjectMutation(createProject);
+/** mutateAsync([projectId, name]) */
+export const useRenameProject = () => useProjectMutation(renameProject);
+/** mutateAsync([projectId, starred]) */
+export const useStarProject = () => useProjectMutation(setProjectStarred);
+/** mutateAsync([projectId]) */
+export const useDeleteProject = () => useProjectMutation(deleteProject);

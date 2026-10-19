@@ -26,12 +26,14 @@ export const codeAgentFunction = inngest.createFunction(
     id: "code-agent",
     // Runs once all retries are exhausted: unblock the UI and give the credit back.
     onFailure: async ({ event, step }) => {
-      const { projectId, userId } = event.data.event.data;
+      const { chatId, projectId, userId } = event.data.event.data;
 
       await step.run("write-error-message", async () => {
         return await db.message.create({
           data: {
-            projectId,
+            // Events sent before projects held chats carry projectId; the migration gave
+            // each such project a chat with the same id.
+            chatId: chatId ?? projectId,
             content: "Generation failed. Your credit has been refunded.",
             role: MessageRole.ASSISTANT,
             type: MessageType.ERROR,
@@ -49,6 +51,8 @@ export const codeAgentFunction = inngest.createFunction(
   { event: "code-agent/run" },
 
   async ({ event, step }) => {
+    const chatId = event.data.chatId ?? event.data.projectId;
+
     // Step-1
     const sandboxId = await step.run("get-sandbox-id", async () => {
       const sandbox = await Sandbox.create("v0-version-final-next", {
@@ -64,7 +68,7 @@ export const codeAgentFunction = inngest.createFunction(
 
         const messages = await db.message.findMany({
           where:{
-            projectId:event.data.projectId
+            chatId
           },
           orderBy:{
             createdAt:"asc"
@@ -305,7 +309,7 @@ export const codeAgentFunction = inngest.createFunction(
       if(isError){
         return await db.message.create({
           data:{
-            projectId:event.data.projectId,
+            chatId,
             content:"Something went wrong. Please try again",
             role:MessageRole.ASSISTANT,
             type:MessageType.ERROR
@@ -316,7 +320,7 @@ export const codeAgentFunction = inngest.createFunction(
 
       return await db.message.create({
         data:{
-          projectId:event.data.projectId,
+          chatId,
           content:generateResponse(),
           role:MessageRole.ASSISTANT,
           type:MessageType.RESULT,
