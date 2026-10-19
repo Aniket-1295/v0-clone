@@ -1,28 +1,63 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
   BarChart3,
+  Bold,
   Bot,
+  ChevronDown,
+  ChevronsUpDown,
   Cloud,
+  CloudUpload,
   CreditCard,
   Database,
+  Diamond,
   Github,
   Globe,
+  Italic,
   KeyRound,
+  ListChecks,
   Mail,
   MessageSquare,
-  MousePointer2,
+  Plus,
   Rocket,
   Search,
   ShoppingCart,
+  Sparkles,
   Webhook,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import TemplateThumbnail from "@/modules/templates/components/template-thumbnail";
+
+// Springy ease used across the cards (same curve as v0's hover animations).
+const SPRING = "ease-[cubic-bezier(0.34,1.56,0.64,1)]";
+
+/** Calls onEnter/onMove/onLeave for pointer activity anywhere on the enclosing card. */
+const useCardPointer = (ref, { onEnter, onMove, onLeave }) => {
+  const handlers = useRef({ onEnter, onMove, onLeave });
+  useEffect(() => {
+    handlers.current = { onEnter, onMove, onLeave };
+  });
+
+  useEffect(() => {
+    const card = ref.current?.closest("[data-card]");
+    if (!card) return;
+    const enter = (e) => handlers.current.onEnter?.(e, card);
+    const move = (e) => handlers.current.onMove?.(e, card);
+    const leave = (e) => handlers.current.onLeave?.(e, card);
+    card.addEventListener("pointerenter", enter);
+    card.addEventListener("pointermove", move);
+    card.addEventListener("pointerleave", leave);
+    return () => {
+      card.removeEventListener("pointerenter", enter);
+      card.removeEventListener("pointermove", move);
+      card.removeEventListener("pointerleave", leave);
+    };
+  }, [ref]);
+};
 
 const Card = ({ className, title, text, children, href }) => {
   const body = (
@@ -37,47 +72,51 @@ const Card = ({ className, title, text, children, href }) => {
     </>
   );
   const classes = cn(
-    "group relative flex flex-col overflow-hidden rounded-2xl border bg-card transition-colors hover:border-foreground/20 dark:bg-neutral-950",
+    "group relative flex flex-col overflow-hidden rounded-2xl border bg-card dark:bg-neutral-950",
     className
   );
   return href ? (
-    <Link href={href} className={classes}>
+    <Link href={href} data-card className={classes}>
       {body}
     </Link>
   ) : (
-    <div className={classes}>{body}</div>
+    <div data-card className={classes}>
+      {body}
+    </div>
   );
 };
 
-const Orb = ({ children }) => (
-  <div className="flex size-20 items-center justify-center rounded-full border bg-background shadow-[0_0_40px_rgba(255,255,255,0.08)] transition-shadow duration-500 group-hover:shadow-[0_0_60px_rgba(255,255,255,0.18)] dark:bg-black">
-    {children}
-  </div>
-);
+/* Sync with a repo: two discs slide together and melt into one through an SVG goo filter. */
+const SyncVisual = () => {
+  const filterId = useId().replace(/:/g, "");
+  const disc =
+    "absolute flex size-[88px] items-center justify-center rounded-full bg-background transition-transform duration-700 dark:bg-neutral-900 " +
+    SPRING;
 
-const SyncVisual = () => (
-  <div className="flex flex-1 items-center justify-center gap-0 pb-10">
-    <Orb>
-      <Image src="/logo.svg" alt="" width={32} height={32} className="invert dark:invert-0" />
-    </Orb>
-    <svg width="64" height="8" viewBox="0 0 64 8" className="text-muted-foreground" aria-hidden>
-      <line
-        x1="0"
-        y1="4"
-        x2="64"
-        y2="4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeDasharray="6 6"
-        className="group-hover:animate-dash-flow"
-      />
-    </svg>
-    <Orb>
-      <Github className="size-8" />
-    </Orb>
-  </div>
-);
+  return (
+    <div className="flex flex-1 items-center justify-center pb-6">
+      <svg className="absolute size-0" aria-hidden>
+        <filter id={filterId} colorInterpolationFilters="sRGB">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
+          <feColorMatrix in="blur" type="matrix" values="2 0 0 0 0  0 2 0 0 0  0 0 2 0 0  0 0 0 45 -12" result="goo" />
+          <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+        </filter>
+      </svg>
+      <div className="relative flex h-[164px] w-[300px] items-center justify-center [filter:drop-shadow(0_4px_12px_rgba(0,0,0,0.04))_drop-shadow(0_8px_24px_rgba(0,0,0,0.06))] dark:[filter:drop-shadow(0_0_1px_rgba(255,255,255,0.3))_drop-shadow(0_8px_24px_rgba(0,0,0,0.6))]">
+        <div className="relative flex h-full w-full items-center justify-center" style={{ filter: `url(#${filterId})` }}>
+          <div className={cn(disc, "-translate-x-16 group-hover:-translate-x-[50px]")}>
+            <Image src="/logo.svg" alt="" width={36} height={36} className="invert dark:invert-0" />
+          </div>
+          <div className={cn(disc, "translate-x-16 group-hover:translate-x-[50px]")}>
+            <Github className="size-9" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
+/* Integrate with apps: a honeycomb of app icons with a fisheye that follows the cursor. */
 const INTEGRATIONS = [
   [Database, "text-emerald-400"],
   [CreditCard, "text-violet-400"],
@@ -89,197 +128,386 @@ const INTEGRATIONS = [
   [Webhook, "text-rose-400"],
   [Search, "text-cyan-400"],
   [Zap, "text-amber-400"],
-  [MessageSquare, "text-lime-400"],
+  [MessageSquare, "text-lime-500"],
   [ShoppingCart, "text-fuchsia-400"],
 ];
+const COLS = 10;
+const ROWS = 6;
+const CELL = 56;
+const ICON = 40;
+const FIELD_W = (COLS - 1) * CELL + CELL / 2 + ICON;
+const FIELD_H = (ROWS - 1) * CELL + ICON;
+const CELLS = Array.from({ length: COLS * ROWS }, (_, k) => {
+  const row = Math.floor(k / COLS);
+  const col = k % COLS;
+  return { x: col * CELL + (row % 2 ? CELL / 2 : 0), y: row * CELL, icon: INTEGRATIONS[(k * 5 + row) % INTEGRATIONS.length] };
+});
+// Smoothing time constant in ms: frame-rate independent, so it settles the same at 30, 60 or 120 fps.
+const FISHEYE = { rest: 0.883, peak: 1.12, radius: 160, push: 5.5, smoothMs: 70 };
 
-const IntegrationsVisual = () => (
-  <div className="relative flex-1 space-y-3 overflow-hidden pb-6 [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]">
-    {[0, 1, 2, 3].map((row) => {
-      const icons = [...INTEGRATIONS.slice(row * 3), ...INTEGRATIONS.slice(0, row * 3)];
-      return (
-        <div
-          key={row}
-          className="flex w-max gap-3 animate-marquee-x group-hover:[animation-play-state:paused]"
-          style={{ "--marquee-duration": `${24 + row * 6}s`, animationDirection: row % 2 ? "reverse" : "normal" }}
-        >
-          {[...icons, ...icons].map(([Icon, color], i) => (
-            <div key={i} className="flex size-11 shrink-0 items-center justify-center rounded-full border bg-background dark:bg-black">
-              <Icon className={cn("size-5", color)} />
-            </div>
-          ))}
-        </div>
-      );
-    })}
-  </div>
-);
+const IntegrationsVisual = () => {
+  const fieldRef = useRef(null);
+  const itemsRef = useRef([]);
+  const sim = useRef({ pointer: null, active: false, frame: 0, last: 0, state: CELLS.map(() => ({ s: 1, x: 0, y: 0 })) });
 
-const PublishVisual = () => (
-  <div className="flex flex-1 flex-col items-center justify-center gap-5 pb-10">
-    <div className="relative flex size-24 items-center justify-center">
-      <span className="absolute inset-0 rounded-full border border-dashed border-foreground/20 transition-transform duration-[2s] group-hover:rotate-180" />
-      <span className="absolute inset-3 rounded-full border border-foreground/10" />
-      <Globe className="size-10 text-foreground/80" />
-      <Rocket className="absolute -right-1 -top-1 size-6 transition-transform duration-500 group-hover:-translate-y-1 group-hover:translate-x-1" />
-    </div>
-    <div className="flex h-7 items-center gap-2 rounded-full border px-3 text-xs">
-      <span className="relative flex size-2">
-        <span className="absolute inline-flex size-full rounded-full bg-amber-400 opacity-75 animate-ping group-hover:bg-emerald-400" />
-        <span className="relative inline-flex size-2 rounded-full bg-amber-400 transition-colors group-hover:bg-emerald-400" />
-      </span>
-      <span className="group-hover:hidden">Building...</span>
-      <span className="hidden group-hover:inline">Live at your-app.com</span>
-    </div>
-  </div>
-);
+  const tick = (now) => {
+    const { pointer, active, state } = sim.current;
+    const dt = sim.current.last ? Math.min(now - sim.current.last, 100) : 16;
+    sim.current.last = now;
+    const k = 1 - Math.exp(-dt / FISHEYE.smoothMs);
+    let moving = false;
+    CELLS.forEach((cell, i) => {
+      let ts = 1;
+      let tx = 0;
+      let ty = 0;
+      if (active && pointer) {
+        const dx = cell.x + ICON / 2 - pointer.x;
+        const dy = cell.y + ICON / 2 - pointer.y;
+        const d = Math.hypot(dx, dy);
+        const f = d < FISHEYE.radius ? Math.cos((d / FISHEYE.radius) * (Math.PI / 2)) : 0;
+        ts = FISHEYE.rest + (FISHEYE.peak - FISHEYE.rest) * f;
+        if (d > 0.5) {
+          tx = (dx / d) * FISHEYE.push * f;
+          ty = (dy / d) * FISHEYE.push * f;
+        }
+      }
+      const s = state[i];
+      s.s += (ts - s.s) * k;
+      s.x += (tx - s.x) * k;
+      s.y += (ty - s.y) * k;
+      if (Math.abs(ts - s.s) > 0.0005 || Math.abs(tx - s.x) > 0.05 || Math.abs(ty - s.y) > 0.05) moving = true;
+      const el = itemsRef.current[i];
+      if (el) el.style.transform = `translate(${s.x.toFixed(2)}px, ${s.y.toFixed(2)}px) scale(${s.s.toFixed(4)})`;
+    });
+    sim.current.frame = moving ? requestAnimationFrame(tick) : 0;
+    if (!moving) sim.current.last = 0;
+  };
 
-const BUTTON_STYLES = [
-  { label: "Solid", className: "rounded-lg bg-white text-black", note: "bg white · radius 8" },
-  { label: "Pill", className: "rounded-full bg-gradient-to-r from-fuchsia-500 to-orange-400 text-white", note: "gradient · radius full" },
-  { label: "Outline", className: "rounded-none border-2 border-white bg-transparent text-white", note: "border 2 · radius 0" },
-  { label: "Soft", className: "rounded-xl bg-emerald-400/20 text-emerald-300", note: "emerald/20 · radius 12" },
-];
+  const kick = () => {
+    if (!sim.current.frame) sim.current.frame = requestAnimationFrame(tick);
+  };
 
-const DesignModeVisual = () => {
-  const [style, setStyle] = useState(0);
-  const current = BUTTON_STYLES[style];
-
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-8">
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setStyle((s) => (s + 1) % BUTTON_STYLES.length)}
-          aria-label="Change button style"
-          className={cn(
-            "relative px-8 py-3 text-lg font-medium shadow-lg transition-all duration-300 cursor-pointer",
-            "outline-2 outline-offset-4 outline-sky-400 group-hover:outline-dashed",
-            current.className
-          )}
-        >
-          RSVP Here
-        </button>
-        <MousePointer2 className="pointer-events-none absolute -bottom-5 -right-6 size-6 fill-white text-black transition-transform duration-300 group-hover:-translate-x-2 group-hover:-translate-y-2" />
-      </div>
-      <p className="h-5 rounded-md bg-sky-400/15 px-2 font-mono text-[11px] leading-5 text-sky-500 opacity-0 transition-opacity group-hover:opacity-100">
-        {current.note} · click to restyle
-      </p>
-    </div>
-  );
-};
-
-const COLLAGE = [
-  ["saas-landing", "pricing-table"],
-  ["analytics-dashboard", "image-carousel"],
-  ["portfolio", "loan-calculator"],
-];
-
-const TemplatesVisual = () => (
-  <div className="relative h-64 overflow-hidden px-4 [mask-image:linear-gradient(to_bottom,black_60%,transparent)]">
-    <div className="grid grid-cols-3 gap-2">
-      {COLLAGE.map((column, i) => (
-        <div
-          key={i}
-          className="space-y-2 transition-transform duration-[3s] ease-out group-hover:-translate-y-16"
-          style={{ transitionDelay: `${i * 120}ms`, marginTop: i === 1 ? 24 : 0 }}
-        >
-          {column.map((slug) => (
-            <div key={slug} className="overflow-hidden rounded-md border">
-              <TemplateThumbnail slug={slug} />
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-// Stacked palette cards that fan out on hover (base and hover transforms per card).
-const PALETTES = [
-  {
-    name: "Midnight",
-    colors: ["#0f172a", "#6366f1", "#e2e8f0"],
-    font: "Inter",
-    className: "z-30 [transform:translateY(0)] group-hover:[transform:translate(-64px,-8px)_rotate(-8deg)]",
-  },
-  {
-    name: "Sunset",
-    colors: ["#7c2d12", "#fb923c", "#fef3c7"],
-    font: "Fraunces",
-    className: "z-20 [transform:translateY(-14px)_scale(0.95)] group-hover:[transform:translateY(-20px)]",
-  },
-  {
-    name: "Forest",
-    colors: ["#052e16", "#22c55e", "#ecfccb"],
-    font: "Geist",
-    className: "z-10 [transform:translateY(-28px)_scale(0.9)] group-hover:[transform:translate(64px,-8px)_rotate(8deg)]",
-  },
-];
-
-const DesignSystemVisual = () => (
-  <div className="relative flex flex-1 items-end justify-center pb-6">
-    <div className="relative h-36 w-56">
-      {PALETTES.map((p) => (
-        <div
-          key={p.name}
-          className={cn(
-            "absolute inset-x-0 bottom-0 rounded-xl border bg-background p-3 shadow-lg transition-transform duration-500 ease-out dark:bg-neutral-900",
-            p.className
-          )}
-        >
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium">{p.name}</span>
-            <span className="text-muted-foreground">{p.font}</span>
-          </div>
-          <div className="mt-2 flex gap-1.5">
-            {p.colors.map((c) => (
-              <span key={c} className="h-6 flex-1 rounded-md border border-black/10" style={{ background: c }} />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const AGENT_STEPS = ["Web", "Plan", "DB", "API", "Deploy", "LLM"];
-
-const AgenticVisual = () => {
-  const [active, setActive] = useState(0);
+  useCardPointer(fieldRef, {
+    onMove: (e) => {
+      const r = fieldRef.current.getBoundingClientRect();
+      sim.current.pointer = { x: e.clientX - r.left, y: e.clientY - r.top };
+      sim.current.active = true;
+      kick();
+    },
+    onLeave: () => {
+      sim.current.active = false;
+      kick();
+    },
+  });
 
   useEffect(() => {
-    const id = setInterval(() => setActive((a) => (a + 1) % AGENT_STEPS.length), 1100);
-    return () => clearInterval(id);
+    const current = sim.current;
+    return () => cancelAnimationFrame(current.frame);
   }, []);
 
   return (
-    <div className="flex flex-1 items-center justify-center px-8 pb-8">
-      <div className="grid w-full max-w-xs grid-cols-3 gap-3">
-        {AGENT_STEPS.map((step, i) => (
-          <div
-            key={step}
-            className={cn(
-              "flex h-10 items-center justify-center rounded-lg border text-sm transition-all duration-300",
-              i === active
-                ? "border-foreground/40 bg-foreground text-background shadow-[0_0_24px_rgba(255,255,255,0.15)]"
-                : i < active
-                  ? "text-foreground"
-                  : "text-muted-foreground"
-            )}
-          >
-            {step}
-          </div>
-        ))}
+    <div className="relative h-[280px] w-full overflow-hidden">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div ref={fieldRef} className="relative shrink-0" style={{ width: FIELD_W, height: FIELD_H }}>
+          {CELLS.map(({ x, y, icon: [Icon, color] }, i) => (
+            <div
+              key={i}
+              ref={(el) => {
+                itemsRef.current[i] = el;
+              }}
+              className={cn("absolute flex items-center justify-center rounded-full border bg-background shadow-sm will-change-transform dark:border-neutral-800 dark:bg-neutral-900", color)}
+              style={{ left: x, top: y, width: ICON, height: ICON }}
+            >
+              <Icon className="size-5" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 };
 
+/* Publish: the mark lifts, scales up and tilts in 3D toward the cursor, with a parallax ghost behind. */
+const PublishVisual = () => {
+  const markRef = useRef(null);
+  const ghostRef = useRef(null);
+
+  const tilt = (e, card) => {
+    const r = card.getBoundingClientRect();
+    const rel = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1));
+    const mark = markRef.current;
+    mark.style.transition = "transform 0.15s ease-out, filter 0.15s ease-out";
+    mark.style.transform = `translateY(-12px) rotateY(${(rel * 20).toFixed(2)}deg) scale(1.15)`;
+    mark.style.filter = `drop-shadow(rgba(0,0,0,0.25) ${(-rel * 1.7).toFixed(2)}px 2.5px 5px)`;
+    ghostRef.current.style.transform = `translateX(${(-rel * 3).toFixed(2)}px)`;
+  };
+
+  useCardPointer(markRef, {
+    onEnter: tilt,
+    onMove: tilt,
+    onLeave: () => {
+      const mark = markRef.current;
+      mark.style.transition = "transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.6s ease";
+      mark.style.transform = "translateY(-12px) rotateY(0deg) scale(1)";
+      mark.style.filter = "none";
+      ghostRef.current.style.transform = "translateX(0px)";
+    },
+  });
+
+  return (
+    <div className="flex h-[220px] items-center justify-center">
+      <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[linear-gradient(180deg,transparent_0%,rgba(127,127,127,0.06)_45%,transparent_55%)] [perspective:1000px]">
+        <div
+          ref={markRef}
+          className="relative flex items-center justify-center [transform-style:preserve-3d]"
+          style={{ transform: "translateY(-12px) rotateY(0deg) scale(1)" }}
+        >
+          <CloudUpload
+            ref={ghostRef}
+            aria-hidden
+            className="absolute size-24 text-foreground opacity-40 brightness-110 transition-transform duration-150 ease-out"
+            style={{ zIndex: -1 }}
+            strokeWidth={1.5}
+          />
+          <CloudUpload className="size-24 text-foreground" strokeWidth={1.5} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* Design mode: a cursor glides onto the button, it gets selected, then the style toolbar rises in. */
+const DesignModeVisual = () => (
+  <div className="flex h-[220px] items-center justify-center">
+    <div className="relative flex h-[195px] w-[280px] flex-col items-center justify-center">
+      {/* Selection label */}
+      <div className="mb-2 flex items-center gap-1.5 rounded-md border border-sky-400 bg-sky-50 px-2 py-0.5 text-sm font-medium text-sky-600 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:delay-200 dark:bg-sky-950 dark:text-sky-300">
+        <Diamond className="size-3.5" /> button <ChevronDown className="size-3.5" />
+      </div>
+
+      {/* Button with its selection frame */}
+      <div className="relative">
+        <div
+          className={cn(
+            "rounded-lg bg-white px-8 py-2.5 text-xl text-black shadow-lg ring-1 ring-black/10 transition-transform duration-500 translate-y-1 group-hover:translate-y-0",
+            SPRING
+          )}
+        >
+          RSVP Here
+        </div>
+        <div className="pointer-events-none absolute -inset-1.5 rounded-md border-2 border-sky-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-hover:delay-200">
+          <div className="absolute inset-1 rounded-[4px] border border-dashed border-sky-400" />
+        </div>
+        <Plus
+          className={cn(
+            "pointer-events-none absolute -bottom-3 -right-3 size-6 text-foreground opacity-80 transition-all duration-700 translate-x-8 translate-y-[22px] group-hover:translate-x-0 group-hover:translate-y-0 group-hover:opacity-100",
+            SPRING
+          )}
+          strokeWidth={1.5}
+        />
+      </div>
+
+      {/* Style toolbar */}
+      <div
+        className={cn(
+          "flex items-center gap-4 rounded-xl bg-white px-4 py-2 text-black shadow-xl ring-1 ring-black/10 opacity-0 transition-all duration-500 translate-y-7 scale-[0.92] group-hover:translate-y-4 group-hover:scale-95 group-hover:opacity-100 group-hover:delay-500",
+          SPRING
+        )}
+      >
+        <span className="size-5 rounded-full bg-neutral-900" />
+        <span className="flex items-center gap-1 text-base">
+          3XL <ChevronsUpDown className="size-3.5 text-neutral-500" />
+        </span>
+        <Bold className="size-4" />
+        <Italic className="size-4" />
+      </div>
+    </div>
+  </div>
+);
+
+/* Start with templates: a grayscale collage that zooms out into full color, alternate columns rising. */
+const COLLAGE = [
+  [{ slug: "memory-game", mobile: true }],
+  [{ slug: "saas-landing" }, { slug: "analytics-dashboard" }, { slug: "pricing-table" }],
+  [{ slug: "newsletter-signup", mobile: true }],
+  [{ slug: "portfolio" }, { slug: "loan-calculator" }, { slug: "image-carousel" }],
+];
+
+const TemplatesVisual = () => (
+  <div className="flex h-[220px] items-start justify-center overflow-hidden">
+    <div
+      className={cn(
+        "flex h-full w-full items-start gap-1 scale-110 saturate-0 contrast-125 transition-[scale,filter] duration-700 group-hover:scale-100 group-hover:saturate-100 group-hover:contrast-100",
+        SPRING
+      )}
+    >
+      {COLLAGE.map((column, i) => (
+        <div
+          key={i}
+          className={cn(
+            "flex flex-1 flex-col gap-1 overflow-hidden rounded-[8px] transition-transform duration-500",
+            i % 2 === 1 && "group-hover:-translate-y-1.5",
+            SPRING
+          )}
+        >
+          {column.map(({ slug, mobile }) => (
+            <div key={slug} className="overflow-hidden rounded-[6px]">
+              <TemplateThumbnail slug={slug} mobile={mobile} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+/* Create design systems: themed cards ride a diagonal conveyor while the card is hovered. */
+const THEMES = [
+  { name: "Midnight", font: "Inter", bg: "#0f172a", fg: "#e2e8f0", accent: "#6366f1", fontClass: "font-sans" },
+  { name: "Sunset", font: "Fraunces", bg: "#fff7ed", fg: "#7c2d12", accent: "#f97316", fontClass: "font-serif" },
+  { name: "Forest", font: "Geist", bg: "#f0fdf4", fg: "#14532d", accent: "#16a34a", fontClass: "font-sans" },
+  { name: "Terminal", font: "Geist Mono", bg: "#09090b", fg: "#a3e635", accent: "#84cc16", fontClass: "font-mono" },
+  { name: "Blush", font: "Playfair", bg: "#fdf2f8", fg: "#831843", accent: "#db2777", fontClass: "font-serif" },
+  { name: "Ocean", font: "DM Sans", bg: "#ecfeff", fg: "#164e63", accent: "#0891b2", fontClass: "font-sans" },
+];
+// Slot for a card at conveyor position p = (index + step) % 6.
+const SLOTS = [
+  { x: 0, y: 0, opacity: 1, z: 30 },
+  { x: -120, y: -80, opacity: 0.7, z: 20 },
+  { x: -200, y: -140, opacity: 0, z: 0 },
+  { x: -200, y: -140, opacity: 0, z: 0 },
+  { x: 180, y: 140, opacity: 0, z: 5 },
+  { x: 120, y: 80, opacity: 0.5, z: 15 },
+];
+
+const DesignSystemVisual = () => {
+  const ref = useRef(null);
+  const [hovered, setHovered] = useState(false);
+  const [step, setStep] = useState(0);
+
+  useCardPointer(ref, {
+    onEnter: () => setHovered(true),
+    onLeave: () => {
+      setHovered(false);
+      setStep(0);
+    },
+  });
+
+  useEffect(() => {
+    if (!hovered) return;
+    const id = setInterval(() => setStep((s) => s + 1), 2400);
+    return () => clearInterval(id);
+  }, [hovered]);
+
+  return (
+    <div ref={ref} className="flex h-[280px] items-center justify-center">
+      <div className="relative -mt-8 h-[150px] w-[240px]">
+        {THEMES.map((theme, i) => {
+          const slot = SLOTS[(i + step) % THEMES.length];
+          return (
+            <div
+              key={theme.name}
+              className="absolute left-0 top-0 w-full transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.34,1.3,0.64,1)]"
+              style={{
+                transform: `translateX(${slot.x}px) translateY(${slot.y}px) rotate(-7deg)`,
+                opacity: slot.opacity,
+                zIndex: slot.z,
+              }}
+            >
+              <div className={cn("overflow-hidden rounded-xl shadow-2xl ring-1 ring-black/10", theme.fontClass)} style={{ background: theme.bg, color: theme.fg }}>
+                <div className="flex items-center justify-between px-4 pt-3 text-[11px] opacity-70">
+                  <span>{theme.name}</span>
+                  <span>{theme.font}</span>
+                </div>
+                <div className="px-4 pb-4 pt-2">
+                  <p className="text-xl font-semibold leading-tight">Aa Bb Cc</p>
+                  <p className="mt-1 text-xs opacity-70">The quick brown fox jumps over the lazy dog.</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="rounded-md px-3 py-1 text-xs font-medium text-white" style={{ background: theme.accent }}>
+                      Button
+                    </span>
+                    <span className="size-4 rounded-full" style={{ background: theme.fg }} />
+                    <span className="size-4 rounded-full" style={{ background: theme.accent }} />
+                    <span className="size-4 rounded-full ring-1 ring-black/10" style={{ background: theme.bg }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* Agentic by default: capability chips orbit the logo and spread out on hover. */
+const AGENT_STEPS = [
+  ["Web", Globe],
+  ["Plan", ListChecks],
+  ["DB", Database],
+  ["API", Webhook],
+  ["Deploy", Rocket],
+  ["LLM", Sparkles],
+];
+const point = (i, r) => {
+  const a = (-90 + i * 60) * (Math.PI / 180);
+  return [Math.cos(a) * r, Math.sin(a) * r];
+};
+
+const AgenticVisual = () => (
+  <div className="flex h-[280px] items-center justify-center">
+    <div className="relative h-[200px] w-[280px] scale-110">
+      <svg
+        viewBox="-140 -100 280 200"
+        className={cn(
+          "absolute inset-0 h-full w-full overflow-visible text-muted-foreground scale-[0.8333] transition-transform duration-700 group-hover:scale-100",
+          SPRING
+        )}
+        aria-hidden
+      >
+        {AGENT_STEPS.map((_, i) => {
+          const [x, y] = point(i, 90);
+          return <line key={i} x1="0" y1="0" x2={x} y2={y} stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.8" />;
+        })}
+      </svg>
+      <div className="absolute left-1/2 top-1/2 z-10 flex size-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[1.5px] bg-background dark:bg-neutral-950">
+        <Image src="/logo.svg" alt="" width={22} height={22} className="invert dark:invert-0" />
+      </div>
+      {AGENT_STEPS.map(([label, Icon], i) => {
+        const [x75, y75] = point(i, 75);
+        const [x90, y90] = point(i, 90);
+        return (
+          <div
+            key={label}
+            className={cn(
+              "absolute left-1/2 top-1/2 z-10 transition-transform duration-700",
+              "[transform:translate(-50%,-50%)_translate(var(--x0),var(--y0))] group-hover:[transform:translate(-50%,-50%)_translate(var(--x1),var(--y1))]",
+              SPRING
+            )}
+            style={{ "--x0": `${x75}px`, "--y0": `${y75}px`, "--x1": `${x90}px`, "--y1": `${y90}px` }}
+          >
+            <div className="flex items-center gap-1.5 whitespace-nowrap rounded border bg-background px-3 py-1.5 dark:bg-neutral-950">
+              <Icon className="size-3" />
+              <span className="font-mono text-[10px]">{label}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
+/* Built for every screen: the phone settles down into place on hover. */
 const DeviceVisual = () => (
-  <div className="flex flex-1 justify-center overflow-hidden">
-    <div className="h-64 w-40 translate-y-2 overflow-hidden rounded-t-[1.75rem] border-[6px] border-b-0 border-neutral-800 bg-neutral-800 transition-transform duration-500 group-hover:translate-y-0">
-      <div className="h-full overflow-hidden rounded-t-[1.25rem] bg-white">
-        <TemplateThumbnail slug="memory-game" mobile className="rounded-t-[1.25rem]" />
+  <div className="flex h-[280px] items-start justify-center overflow-hidden pt-8">
+    <div
+      className={cn(
+        "w-[200px] -translate-y-5 overflow-hidden rounded-[2rem] border-[7px] border-neutral-800 bg-neutral-800 shadow-2xl transition-transform duration-700 group-hover:translate-y-0 group-hover:scale-[0.94]",
+        SPRING
+      )}
+    >
+      <div className="overflow-hidden rounded-[1.5rem] bg-white">
+        <TemplateThumbnail slug="memory-game" mobile />
       </div>
     </div>
   </div>
@@ -288,7 +516,7 @@ const DeviceVisual = () => (
 export default function FeaturesSection() {
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <Card className="min-h-[340px] justify-center p-8">
+      <Card className="min-h-[436px] justify-center p-8">
         <h3 className="text-4xl xl:text-[2.75rem] xl:leading-[1.1] font-semibold tracking-tighter">
           Prompt.
           <br />
@@ -299,35 +527,35 @@ export default function FeaturesSection() {
         </p>
       </Card>
 
-      <Card title="Sync with a repo" text="Connect to GitHub and keep every version of your code in your own repository." className="min-h-[340px]">
+      <Card title="Sync with a repo" text="Connect to GitHub and keep every version of your code in your own repository." className="min-h-[436px]">
         <SyncVisual />
       </Card>
 
-      <Card title="Integrate with apps" text="Build with your favorite tools and APIs: databases, payments, email and AI." className="min-h-[340px]">
+      <Card title="Integrate with apps" text="Build with your favorite tools and APIs: databases, payments, email and AI." className="min-h-[436px]">
         <IntegrationsVisual />
       </Card>
 
-      <Card title="Publish in one click" text="Go live with a shareable URL as soon as your app looks right." className="min-h-[340px]">
+      <Card title="Publish in one click" text="Go live with a shareable URL as soon as your app looks right.">
         <PublishVisual />
       </Card>
 
-      <Card title="Edit with design mode" text="Fine-tune every detail with visual controls and a live preview." className="min-h-[340px]">
+      <Card title="Edit with design mode" text="Fine-tune every detail with visual controls and a live preview.">
         <DesignModeVisual />
       </Card>
 
-      <Card title="Start with templates" text="Launch faster with ready-made apps, components and full-page designs." className="min-h-[340px]" href="/templates">
+      <Card title="Start with templates" text="Launch faster with ready-made apps, components and full-page designs." href="/templates">
         <TemplatesVisual />
       </Card>
 
-      <Card title="Create design systems" text="Define colors, typography and styles you can reuse across projects." className="min-h-[340px]">
+      <Card title="Create design systems" text="Define colors, typography and styles you can reuse across projects." className="min-h-[412px]">
         <DesignSystemVisual />
       </Card>
 
-      <Card title="Agentic by default" text="v0 plans, creates tasks and wires up data and APIs as it builds." className="min-h-[340px]">
+      <Card title="Agentic by default" text="v0 plans, creates tasks and wires up data and APIs as it builds." className="min-h-[412px]">
         <AgenticVisual />
       </Card>
 
-      <Card title="Built for every screen" text="Every app is responsive. Preview it at desktop, tablet and phone sizes." className="min-h-[340px]" href="/templates/memory-game">
+      <Card title="Built for every screen" text="Every app is responsive. Preview it at desktop, tablet and phone sizes." className="min-h-[412px]" href="/templates/memory-game">
         <DeviceVisual />
       </Card>
     </section>
