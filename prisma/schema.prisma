@@ -21,6 +21,7 @@ model User {
   clerkId String @unique
 
     projects Project[]
+    chats    Chat[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -28,15 +29,34 @@ model User {
  
 }
 
+// A project groups chats, like a v0 project.
 model Project {
   id String @id @default(cuid())
   name String
   userId String
   user User @relation(fields: [userId] , references: [id] , onDelete: Cascade)
+  starred Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  chats Chat[]
+}
+
+// One conversation and its versions. Chats without a project are drafts.
+model Chat {
+  id String @id @default(cuid())
+  title String
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   messages Message[]
+
+  @@index([userId])
+  @@index([projectId])
 }
 
 enum MessageRole {
@@ -58,10 +78,12 @@ model Message {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  projectId  String
-  project  Project  @relation(fields: [projectId] , references: [id] , onDelete: Cascade)
+  chatId  String
+  chat  Chat  @relation(fields: [chatId] , references: [id] , onDelete: Cascade)
 
   fragments Fragment?
+
+  @@index([chatId])
 }
 
 model Fragment {
