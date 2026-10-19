@@ -120,7 +120,7 @@ const PreviewPane = ({ activeFragment, tabState, setTabState }) => {
   );
 };
 
-const ProjectView = ({ projectId, initialTab = "preview" }) => {
+const ProjectView = ({ chatId, initialTab = "preview" }) => {
   const [activeFragment, setActiveFragment] = useState(null);
   const [tabState, setTabState] = useState(initialTab);
   // Phones get one pane at a time instead of side-by-side panels.
@@ -129,7 +129,7 @@ const ProjectView = ({ projectId, initialTab = "preview" }) => {
 
   const chat = (
     <MessageContainer
-      projectId={projectId}
+      chatId={chatId}
       activeFragment={activeFragment}
       setActiveFragment={setActiveFragment}
       onFragmentOpen={() => {
@@ -149,7 +149,7 @@ const ProjectView = ({ projectId, initialTab = "preview" }) => {
 
   return (
     <div className="h-dvh flex flex-col bg-background">
-      <ProjectHeader projectId={projectId}>
+      <ProjectHeader chatId={chatId}>
         {isMobile && (
           <div className="flex rounded-md border p-0.5">
             {[

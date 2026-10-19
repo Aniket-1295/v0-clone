@@ -1,161 +1,95 @@
 "use server";
 
-import { inngest } from "@/inngest/client";
 import db from "@/lib/db";
-import { consumeCredits } from "@/lib/usage";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
-import { MessageRole, MessageType } from "@prisma/client";
-import { generateSlug } from "random-word-slugs";
-import { headers } from "next/headers";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { getTemplate } from "@/templates/registry";
+import { MessageType } from "@prisma/client";
 
-const OUT_OF_CREDITS_MESSAGE =
-  "You have run out of credits. Upgrade to keep generating.";
+const UNAUTHORIZED = () => fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
 
-export const createProject = async (value) => {
+export const createProject = async (name) => {
   const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
 
-  if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
-
-  try {
-    await consumeCredits();
-  } catch (error) {
-    // rate-limiter-flexible rejects with a RateLimiterRes (not an Error) when
-    // the user is out of points; anything else is a real failure.
-    if (error instanceof Error) {
-      console.error("consumeCredits failed:", error);
-      return fail(ActionErrorCode.INTERNAL, "Something went wrong. Please try again.");
-    }
-
-    return fail(ActionErrorCode.TOO_MANY_REQUESTS, OUT_OF_CREDITS_MESSAGE);
-  }
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return fail(ActionErrorCode.INTERNAL, "Give your project a name.");
 
   try {
-    const newProject = await db.project.create({
-      data: {
-        name: generateSlug(2, { format: "kebab" }),
-        userId: user.id,
-        messages: {
-          create: {
-            content: value,
-            role: MessageRole.USER,
-            type: MessageType.RESULT,
-          },
-        },
-      },
-    });
-
-    await inngest.send({
-      name: "code-agent/run",
-      data: {
-        value: value,
-        projectId: newProject.id,
-        userId: user.clerkId,
-      },
-    });
-
-    return ok(newProject);
+    const project = await db.project.create({ data: { name: trimmed.slice(0, 80), userId: user.id } });
+    return ok(project);
   } catch (error) {
     console.error("createProject failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Failed to create project. Please try again.");
   }
 };
 
+/** The user's projects (starred first, then most recently updated) with chat counts. */
 export const getProjects = async () => {
   const user = await getCurrentUser();
-
-  if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
+  if (!user) return UNAUTHORIZED();
 
   const projects = await db.project.findMany({
-    where: {
-      userId: user.id,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
+    where: { userId: user.id },
+    orderBy: [{ starred: "desc" }, { updatedAt: "desc" }],
+    include: { _count: { select: { chats: true } } },
   });
 
   return ok(projects);
 };
 
+/** A project with its recent chats and its latest generated version. */
 export const getProjectById = async (projectId) => {
   const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
 
-  if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
-
-  const project = await db.project.findUnique({
-    where: {
-      id: projectId,
-      userId: user.id,
+  const project = await db.project.findFirst({
+    where: { id: projectId, userId: user.id },
+    include: {
+      chats: { orderBy: { updatedAt: "desc" }, select: { id: true, title: true, updatedAt: true } },
     },
   });
 
   if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
 
-  return ok(project);
+  const latestVersion = await db.fragment.findFirst({
+    where: { message: { type: MessageType.RESULT, chat: { projectId } } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      sandboxUrl: true,
+      createdAt: true,
+      message: { select: { chatId: true } },
+    },
+  });
+
+  return ok({ ...project, latestVersion });
 };
 
-/**
- * Starts a project from a template: the project gets the template's real code as its
- * first version, previewed live from /templates-preview/<slug>. No AI run, no credit used.
- */
-export const createProjectFromTemplate = async (slug) => {
+export const renameProject = async (projectId, name) => {
   const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
 
-  if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return fail(ActionErrorCode.INTERNAL, "Name cannot be empty.");
 
-  const template = getTemplate(slug);
+  const { count } = await db.project.updateMany({ where: { id: projectId, userId: user.id }, data: { name: trimmed.slice(0, 80) } });
+  return count ? ok({ id: projectId }) : fail(ActionErrorCode.NOT_FOUND, "Project not found.");
+};
 
-  if (!template) return fail(ActionErrorCode.NOT_FOUND, "Template not found.");
+export const setProjectStarred = async (projectId, starred) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
 
-  try {
-    const source = await readFile(
-      path.join(process.cwd(), "src/templates/components", `${slug}.jsx`),
-      "utf8"
-    );
-    const requestHeaders = await headers();
-    const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-    const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
+  const { count } = await db.project.updateMany({ where: { id: projectId, userId: user.id }, data: { starred: !!starred } });
+  return count ? ok({ id: projectId, starred: !!starred }) : fail(ActionErrorCode.NOT_FOUND, "Project not found.");
+};
 
-    const project = await db.project.create({
-      data: {
-        name: `${slug}-${generateSlug(1, { format: "kebab" })}`,
-        userId: user.id,
-      },
-    });
+/** Deletes a project and every chat in it. */
+export const deleteProject = async (projectId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
 
-    // Created one after the other so the chat shows them in this order.
-    await db.message.create({
-      data: {
-        projectId: project.id,
-        content: `Start from the ${template.name} template.`,
-        role: MessageRole.USER,
-        type: MessageType.RESULT,
-      },
-    });
-
-    await db.message.create({
-      data: {
-        projectId: project.id,
-        content: `Here's the **${template.name}** template: ${template.description} Ask me for any change you want.`,
-        role: MessageRole.ASSISTANT,
-        type: MessageType.RESULT,
-        fragments: {
-          create: {
-            sandboxUrl: `${protocol}://${host}/templates-preview/${slug}`,
-            title: template.name,
-            files: { "app/page.tsx": source },
-          },
-        },
-      },
-    });
-
-    return ok(project);
-  } catch (error) {
-    console.error("createProjectFromTemplate failed:", error);
-    return fail(ActionErrorCode.INTERNAL, "Could not start a project from this template.");
-  }
+  const { count } = await db.project.deleteMany({ where: { id: projectId, userId: user.id } });
+  return count ? ok({ id: projectId }) : fail(ActionErrorCode.NOT_FOUND, "Project not found.");
 };

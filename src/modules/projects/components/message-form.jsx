@@ -28,11 +28,11 @@ const formSchema = z.object({
 
 
 
-const MessageForm = ({projectId}) => {
+const MessageForm = ({chatId}) => {
   const [isFocused, setIsFocused] = useState(false);
   const router = useRouter();
 
-  const {mutateAsync , isPending} = useCreateMessages(projectId)
+  const {mutateAsync , isPending} = useCreateMessages(chatId)
 
   const {data:usage} = useStatus()
 
