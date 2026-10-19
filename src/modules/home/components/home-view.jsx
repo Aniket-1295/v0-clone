@@ -1,112 +1,74 @@
 "use client";
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { SignedIn } from "@clerk/nextjs";
-import {
-  ChevronRight,
-  Clapperboard,
-  FolderOpen,
-  House,
-  LayoutDashboard,
-  MonitorPlay,
-  Music,
-  ShoppingBag,
-  Shuffle,
-  Sparkles,
-  SquareKanban,
-} from "lucide-react";
+import { ChevronRight, LayoutGrid } from "lucide-react";
 
-import { PROJECT_TEMPLATES } from "@/constant";
+import { TEMPLATES } from "@/templates/registry";
 import ProjectsForm, { usePromptForm } from "./ProjectsForm";
+import PromptChips from "./prompt-chips";
 import ProjectList from "./project-list";
-import IdeaGrid from "./idea-grid";
-
-const CHIP_ICONS = {
-  media: Clapperboard,
-  dashboard: LayoutDashboard,
-  kanban: SquareKanban,
-  files: FolderOpen,
-  video: MonitorPlay,
-  store: ShoppingBag,
-  listings: House,
-  music: Music,
-};
-
-const CHIPS_PER_PAGE = 4;
+import TemplateSection from "./template-section";
+import FeaturesSection from "./features-section";
+import MobileShowcase from "./mobile-showcase";
+import FaqSection from "./faq-section";
+import CtaSection from "./cta-section";
+import SiteFooter from "./site-footer";
 
 const HomeView = () => {
   const form = usePromptForm();
-  const [chipPage, setChipPage] = useState(0);
 
-  const pageCount = Math.ceil(PROJECT_TEMPLATES.length / CHIPS_PER_PAGE);
-  const chips = PROJECT_TEMPLATES.slice(
-    chipPage * CHIPS_PER_PAGE,
-    (chipPage + 1) * CHIPS_PER_PAGE
-  );
-
-  const pickPrompt = (prompt) => {
-    form.setValue("content", prompt, { shouldValidate: true, shouldDirty: true });
+  const focusPrompt = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     form.setFocus("content");
   };
 
+  const pickPrompt = (prompt) => {
+    form.setValue("content", prompt, { shouldValidate: true, shouldDirty: true });
+    focusPrompt();
+  };
+
   return (
-    <div className="w-full px-4">
-      <section className="mx-auto flex max-w-2xl flex-col items-center pt-16 pb-20 md:pt-24 md:pb-28">
-        <Link
-          href="/pricing"
-          className="mb-6 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs md:text-sm text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30"
-        >
-          <Sparkles className="size-3.5" />
-          <span>
-            Free credits to start. <span className="text-foreground font-medium">See plans</span>
-          </span>
-          <ChevronRight className="size-3.5" />
-        </Link>
-
-        <h1 className="mb-6 text-center text-3xl md:text-4xl font-semibold tracking-tight text-balance">
-          What do you want to create?
-        </h1>
-
-        <div className="w-full">
-          <ProjectsForm form={form} />
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-          {chips.map((template) => {
-            const Icon = CHIP_ICONS[template.preview];
-            return (
-              <button
-                key={template.label}
-                type="button"
-                onClick={() => pickPrompt(template.prompt)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border bg-background px-3 text-xs md:text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
-              >
-                <Icon className="size-3.5" />
-                {template.label}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            aria-label="Show other ideas"
-            onClick={() => setChipPage((page) => (page + 1) % pageCount)}
-            className="inline-flex size-8 items-center justify-center rounded-full border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
+    <>
+      <div className="w-full px-4">
+        <section className="mx-auto flex max-w-2xl flex-col items-center pt-20 pb-28 md:pt-28 md:pb-36">
+          <Link
+            href="/templates"
+            className="mb-6 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs md:text-sm text-muted-foreground transition-colors hover:text-foreground hover:border-foreground/30 dark:bg-black"
           >
-            <Shuffle className="size-3.5" />
-          </button>
+            <LayoutGrid className="size-3.5" />
+            <span>
+              Explore <span className="font-medium text-foreground">{TEMPLATES.length} ready-to-run templates</span>
+            </span>
+            <ChevronRight className="size-3.5" />
+          </Link>
+
+          <h1 className="mb-6 text-center text-3xl md:text-4xl font-semibold tracking-tight text-balance">
+            What do you want to create?
+          </h1>
+
+          <div className="w-full">
+            <ProjectsForm form={form} />
+          </div>
+
+          <PromptChips onPick={pickPrompt} />
+        </section>
+
+        <div className="mx-auto max-w-6xl space-y-24 pb-24 md:space-y-32">
+          {/* getProjects requires a session; anonymous visitors used to trigger a 500 per visit. */}
+          <SignedIn>
+            <ProjectList />
+          </SignedIn>
+
+          <TemplateSection />
+          <FeaturesSection />
+          <MobileShowcase />
+          <FaqSection />
+          <CtaSection onStart={focusPrompt} />
         </div>
-      </section>
-
-      <div className="mx-auto max-w-6xl space-y-16 pb-24">
-        {/* getProjects requires a session; anonymous visitors used to trigger a 500 per visit. */}
-        <SignedIn>
-          <ProjectList />
-        </SignedIn>
-
-        <IdeaGrid onPick={pickPrompt} />
       </div>
-    </div>
+      <SiteFooter />
+    </>
   );
 };
 

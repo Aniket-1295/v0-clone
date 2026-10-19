@@ -183,3 +183,34 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Landing page motion (src/modules/home). */
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes marquee-y {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+@keyframes dash-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+@utility animate-marquee-x {
+  animation: marquee-x var(--marquee-duration, 30s) linear infinite;
+}
+@utility animate-marquee-y {
+  animation: marquee-y var(--marquee-duration, 40s) linear infinite;
+}
+@utility animate-dash-flow {
+  animation: dash-flow 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee-x,
+  .animate-marquee-y,
+  .animate-dash-flow {
+    animation: none;
+  }
+}

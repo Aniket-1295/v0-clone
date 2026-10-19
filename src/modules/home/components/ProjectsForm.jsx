@@ -1,17 +1,17 @@
 "use client";
-import React from "react";
-import { useForm } from "react-hook-form";
+import React, { useRef, useState, useSyncExternalStore } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon } from "lucide-react";
+import { ArrowUpIcon, MicIcon, SquareIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useState } from "react";
 import z from "zod";
 import { Spinner } from "@/components/ui/spinner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { Form, FormField } from "@/components/ui/form";
 
 import { useCreateProject } from "@/modules/projects/hooks/project";
@@ -34,10 +34,26 @@ export const usePromptForm = () =>
     mode: "onChange",
   });
 
+const getRecognition = () =>
+  typeof window === "undefined" ? null : window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
+// Whether the browser supports speech input; false during SSR to avoid a hydration mismatch.
+const useSpeechSupported = () =>
+  useSyncExternalStore(
+    () => () => {},
+    () => !!getRecognition(),
+    () => false
+  );
+
 const ProjectsForm = ({ form }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
   const router = useRouter();
   const { mutateAsync, isPending } = useCreateProject();
+  const speechSupported = useSpeechSupported();
+  const content = useWatch({ control: form.control, name: "content" }) ?? "";
+  const hasText = content.trim().length > 0;
 
   const onSubmit = async (values) => {
     try {
@@ -50,14 +66,40 @@ const ProjectsForm = ({ form }) => {
     }
   };
 
-  const isButtonDisabled = isPending || !form.watch("content").trim();
+  const toggleVoice = () => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const Recognition = getRecognition();
+    if (!Recognition) return;
+
+    const recognition = new Recognition();
+    const base = form.getValues("content");
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.lang = navigator.language || "en-US";
+    recognition.onresult = (event) => {
+      const spoken = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join("");
+      form.setValue("content", [base, spoken].filter(Boolean).join(" "), { shouldValidate: true });
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "not-allowed") toast.error("Microphone access was blocked.");
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  };
 
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className={cn(
-          "relative rounded-xl border bg-card px-3 pb-3 pt-1 shadow-sm transition-colors",
+          "relative rounded-xl border bg-card px-3 pb-3 pt-1 shadow-sm transition-colors dark:bg-neutral-950",
           isFocused && "border-foreground/30"
         )}
       >
@@ -68,7 +110,7 @@ const ProjectsForm = ({ form }) => {
             <TextAreaAutosize
               {...field}
               aria-label="Describe what you want to build"
-              placeholder="Ask v0 to build..."
+              placeholder={listening ? "Listening..." : "Ask v0 to build..."}
               onFocus={() => setIsFocused(true)}
               onBlur={() => {
                 setIsFocused(false);
@@ -78,9 +120,10 @@ const ProjectsForm = ({ form }) => {
               maxRows={10}
               className="pt-3 px-1 resize-none border-none w-full outline-none bg-transparent text-sm md:text-base placeholder:text-muted-foreground"
               onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                // Enter sends, Shift+Enter adds a new line.
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
-                  form.handleSubmit(onSubmit)(e);
+                  if (hasText && !isPending) form.handleSubmit(onSubmit)(e);
                 }
               }}
             />
@@ -88,20 +131,33 @@ const ProjectsForm = ({ form }) => {
         />
 
         <div className="flex gap-x-2 items-center justify-between pt-2">
-          <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-1.5">
-            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
-              <span>&#8984;</span>Enter
-            </kbd>
-            to send
+          <p className="text-xs text-muted-foreground hidden sm:block">
+            Shift + Enter for a new line
+          </p>
+          <div className="ml-auto flex items-center gap-1.5">
+            {speechSupported && (
+              <Hint text={listening ? "Stop dictation" : "Dictate"} side="bottom">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label={listening ? "Stop dictation" : "Start dictation"}
+                  aria-pressed={listening}
+                  onClick={toggleVoice}
+                  className={cn("size-8 rounded-md cursor-pointer", listening && "bg-red-500/15 text-red-500 hover:bg-red-500/20")}
+                >
+                  {listening ? <SquareIcon className="size-3.5 fill-current" /> : <MicIcon className="size-4" />}
+                </Button>
+              </Hint>
+            )}
+            <Button
+              aria-label="Create project"
+              className="size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+              disabled={isPending || !hasText}
+              type="submit"
+            >
+              {isPending ? <Spinner /> : <ArrowUpIcon className="size-4" />}
+            </Button>
           </div>
-          <Button
-            aria-label="Create project"
-            className="ml-auto size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-            disabled={isButtonDisabled}
-            type="submit"
-          >
-            {isPending ? <Spinner /> : <ArrowUpIcon className="size-4" />}
-          </Button>
         </div>
       </form>
     </Form>
