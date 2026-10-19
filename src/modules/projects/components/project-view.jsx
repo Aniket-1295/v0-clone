@@ -120,11 +120,11 @@ const PreviewPane = ({ activeFragment, tabState, setTabState }) => {
   );
 };
 
-const ProjectView = ({ projectId }) => {
+const ProjectView = ({ projectId, initialTab = "preview" }) => {
   const [activeFragment, setActiveFragment] = useState(null);
-  const [tabState, setTabState] = useState("preview");
+  const [tabState, setTabState] = useState(initialTab);
   // Phones get one pane at a time instead of side-by-side panels.
-  const [mobilePane, setMobilePane] = useState("chat");
+  const [mobilePane, setMobilePane] = useState(initialTab === "code" ? "preview" : "chat");
   const isMobile = useIsMobile();
 
   const chat = (

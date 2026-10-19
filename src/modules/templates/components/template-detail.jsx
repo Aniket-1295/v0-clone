@@ -24,7 +24,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { showActionError } from "@/lib/show-action-error";
 import { CodeView } from "@/modules/projects/components/code-view";
-import { useCreateProject } from "@/modules/projects/hooks/project";
+import { useCreateProjectFromTemplate } from "@/modules/projects/hooks/project";
 import { getCategoryLabel } from "@/templates/registry";
 import TemplateCard from "./template-card";
 
@@ -36,13 +36,13 @@ const DEVICES = [
 
 const UseTemplateButton = ({ template }) => {
   const router = useRouter();
-  const { mutateAsync, isPending } = useCreateProject();
+  const { mutateAsync, isPending } = useCreateProjectFromTemplate();
 
   const onUse = async () => {
     try {
-      const project = await mutateAsync(template.prompt);
-      toast.success(`Building ${template.name}`);
-      router.push(`/projects/${project.id}`);
+      const project = await mutateAsync(template.slug);
+      toast.success(`${template.name} added to your projects`);
+      router.push(`/projects/${project.id}?tab=code`);
     } catch (error) {
       showActionError(error, router, "Could not start a project from this template");
     }

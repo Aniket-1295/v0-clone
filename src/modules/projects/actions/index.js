@@ -7,6 +7,10 @@ import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { MessageRole, MessageType } from "@prisma/client";
 import { generateSlug } from "random-word-slugs";
+import { headers } from "next/headers";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { getTemplate } from "@/templates/registry";
 
 const OUT_OF_CREDITS_MESSAGE =
   "You have run out of credits. Upgrade to keep generating.";
@@ -92,4 +96,66 @@ export const getProjectById = async (projectId) => {
   if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
 
   return ok(project);
+};
+
+/**
+ * Starts a project from a template: the project gets the template's real code as its
+ * first version, previewed live from /templates-preview/<slug>. No AI run, no credit used.
+ */
+export const createProjectFromTemplate = async (slug) => {
+  const user = await getCurrentUser();
+
+  if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
+
+  const template = getTemplate(slug);
+
+  if (!template) return fail(ActionErrorCode.NOT_FOUND, "Template not found.");
+
+  try {
+    const source = await readFile(
+      path.join(process.cwd(), "src/templates/components", `${slug}.jsx`),
+      "utf8"
+    );
+    const requestHeaders = await headers();
+    const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+    const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
+
+    const project = await db.project.create({
+      data: {
+        name: `${slug}-${generateSlug(1, { format: "kebab" })}`,
+        userId: user.id,
+      },
+    });
+
+    // Created one after the other so the chat shows them in this order.
+    await db.message.create({
+      data: {
+        projectId: project.id,
+        content: `Start from the ${template.name} template.`,
+        role: MessageRole.USER,
+        type: MessageType.RESULT,
+      },
+    });
+
+    await db.message.create({
+      data: {
+        projectId: project.id,
+        content: `Here's the **${template.name}** template: ${template.description} Ask me for any change you want.`,
+        role: MessageRole.ASSISTANT,
+        type: MessageType.RESULT,
+        fragments: {
+          create: {
+            sandboxUrl: `${protocol}://${host}/templates-preview/${slug}`,
+            title: template.name,
+            files: { "app/page.tsx": source },
+          },
+        },
+      },
+    });
+
+    return ok(project);
+  } catch (error) {
+    console.error("createProjectFromTemplate failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not start a project from this template.");
+  }
 };
