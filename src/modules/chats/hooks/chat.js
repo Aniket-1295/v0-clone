@@ -8,7 +8,10 @@ import {
   getChats,
   moveChat,
   renameChat,
+  wakeChatSandbox,
 } from "../actions";
+
+const KEEP_ALIVE_INTERVAL_MS = 2 * 60 * 1000;
 
 /** scope: "all", "drafts" or a project id. */
 export const useGetChats = (scope = "all", { enabled = true } = {}) =>
@@ -47,3 +50,24 @@ export const useRenameChat = () => useChatMutation(renameChat);
 export const useMoveChat = () => useChatMutation(moveChat);
 /** mutateAsync([chatId]) */
 export const useDeleteChat = () => useChatMutation(deleteChat);
+
+// Keeps the chat's sandbox alive while the page is open (TanStack pauses the interval in
+// background tabs) and rebuilds it when it has expired; on a rebuild the messages are
+// refetched so the preview picks up the new sandbox URL.
+export const useKeepSandboxAlive = (chatId) => {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: ["sandbox", chatId],
+    queryFn: async () => {
+      const data = unwrap(await wakeChatSandbox(chatId));
+      if (data.status === "rebuilt") {
+        await queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
+      }
+      return data;
+    },
+    enabled: !!chatId,
+    refetchInterval: KEEP_ALIVE_INTERVAL_MS,
+    staleTime: KEEP_ALIVE_INTERVAL_MS,
+    retry: false,
+  });
+};

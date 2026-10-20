@@ -33,9 +33,11 @@ import {
         (message) => message.role === MessageRole.ASSISTANT
       );
   
-      if(lastAssistantMessage?.fragments && lastAssistantMessage.id !== lastAssistantMessageIdRef.current){
+      // Keyed on the sandbox URL too, so a rebuilt sandbox refreshes the preview.
+      const key = `${lastAssistantMessage?.id}:${lastAssistantMessage?.fragments?.sandboxUrl}`
+      if(lastAssistantMessage?.fragments && key !== lastAssistantMessageIdRef.current){
         setActiveFragment(lastAssistantMessage?.fragments);
-        lastAssistantMessageIdRef.current = lastAssistantMessage.id
+        lastAssistantMessageIdRef.current = key
       }
     },[messages , setActiveFragment])
   

@@ -50,6 +50,8 @@ model Chat {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   projectId String?
   project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // One persistent E2B sandbox per chat; recreated from the latest version when it expires.
+  sandboxId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
