@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import ProjectHeader from "./project-header";
 import MessageContainer from "./message-container";
+import { strToU8, zipSync } from "fflate";
 import {
   Code,
   CrownIcon,
+  DownloadIcon,
   ExternalLink,
   EyeIcon,
   MessageSquare,
@@ -25,7 +27,7 @@ import { FileExplorer } from "./file-explorer";
 import { Hint } from "@/components/ui/hint";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { useKeepSandboxAlive } from "@/modules/chats/hooks/chat";
+import { useGetChat, useKeepSandboxAlive } from "@/modules/chats/hooks/chat";
 
 const EmptyPane = ({ icon: Icon, text }) => (
   <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -36,7 +38,27 @@ const EmptyPane = ({ icon: Icon, text }) => (
   </div>
 );
 
-const PreviewPane = ({ activeFragment, tabState, setTabState }) => {
+const slugify = (text) =>
+  (text || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "v0-app";
+
+/** Zips a version's files (the full app tree) in the browser and saves it. */
+const downloadFiles = (files, name) => {
+  const folder = slugify(name);
+  const zipped = zipSync(
+    Object.fromEntries(
+      Object.entries(files)
+        .filter(([, content]) => typeof content === "string")
+        .map(([filePath, content]) => [`${folder}/${filePath.replace(/^\/+/, "")}`, strToU8(content)])
+    )
+  );
+  const url = URL.createObjectURL(new Blob([zipped], { type: "application/zip" }));
+  const link = Object.assign(document.createElement("a"), { href: url, download: `${folder}.zip` });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
+  const { data: chat } = useGetChat(chatId);
   const [previewKey, setPreviewKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const sandboxUrl = activeFragment?.sandboxUrl;
@@ -100,6 +122,20 @@ const PreviewPane = ({ activeFragment, tabState, setTabState }) => {
             </Hint>
           </div>
         )}
+
+        {activeFragment?.files && (
+          <Hint text="Download code" side="bottom">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto size-8 shrink-0"
+              aria-label="Download code as a zip"
+              onClick={() => downloadFiles(activeFragment.files, chat?.title || activeFragment.title)}
+            >
+              <DownloadIcon className="size-3.5" />
+            </Button>
+          </Hint>
+        )}
       </div>
 
       <TabsContent value="preview" className="min-h-0 flex-1 bg-background">
@@ -144,6 +180,7 @@ const ProjectView = ({ chatId, initialTab = "preview" }) => {
 
   const preview = (
     <PreviewPane
+      chatId={chatId}
       activeFragment={activeFragment}
       tabState={tabState}
       setTabState={setTabState}
