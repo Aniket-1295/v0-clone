@@ -4,6 +4,10 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/templates/[slug]": ["./src/templates/components/**/*"],
   },
+  experimental: {
+    // Prompts can carry one image (resized in the browser to well under 2 MB).
+    serverActions: { bodySizeLimit: "3mb" },
+  },
 };
 
 export default nextConfig;

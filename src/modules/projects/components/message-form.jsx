@@ -2,7 +2,7 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, ImagePlusIcon, SquareIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
@@ -17,14 +17,17 @@ import { useCreateMessages } from "@/modules/messages/hooks/message";
 import { useStatus } from "@/modules/usage/hooks/usage";
 import { Usage } from "@/modules/usage/components/usage";
 import { showActionError } from "@/lib/show-action-error";
+import { useImageAttachment } from "@/hooks/use-image-attachment";
+import { ImageAttachmentPreview } from "@/components/image-attachment-preview";
+import { Hint } from "@/components/ui/hint";
 
 
+// Empty is allowed when an image is attached (the prompt then asks to recreate it).
 const formSchema = z.object({
-  content: z
-    .string()
-    .min(1, "Message description is required")
-    .max(1000, "Description is too long"),
+  content: z.string().max(1000, "Description is too long"),
 });
+
+const IMAGE_ONLY_PROMPT = "Recreate this design.";
 
 
 
@@ -36,6 +39,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
   const {mutateAsync , isPending} = useCreateMessages(chatId)
 
   const {data:usage} = useStatus()
+  const attachment = useImageAttachment()
 
   const showUsage = !!usage;
 
@@ -48,13 +52,15 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
   });
 
   const content = useWatch({ control: form.control, name: "content" }) ?? "";
+  const canSend = (!!content.trim() || !!attachment.image) && !attachment.processing;
 
  
   const onSubmit = async (values) => {
-    if (isGenerating) return;
+    if (isGenerating || !canSend) return;
     try {
-      await mutateAsync(values.content)
+      await mutateAsync({ value: values.content.trim() || IMAGE_ONLY_PROMPT, image: attachment.image })
       form.reset()
+      attachment.clear()
       toast.success("Message sent successfully")
     } catch (error) {
       showActionError(error, router, "Failed to send message");
@@ -72,6 +78,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
           )
         }
         <form
+          {...attachment.dropProps}
           onSubmit={form.handleSubmit(onSubmit)}
           className={cn(
             "relative rounded-xl border bg-card px-3 pb-3 pt-1 shadow-sm transition-colors",
@@ -79,6 +86,8 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
             isFocused && "border-foreground/30"
           )}
         >
+         <input {...attachment.inputProps} />
+         <ImageAttachmentPreview previewUrl={attachment.previewUrl} processing={attachment.processing} onRemove={attachment.clear} />
          <FormField
          control={form.control}
          name="content"
@@ -88,6 +97,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
                 disabled={isPending}
                 aria-label="Ask for a change"
                 placeholder="Ask v0 to change something..."
+                onPaste={attachment.onPaste}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => {
                   setIsFocused(false);
@@ -110,6 +120,17 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
          />
 
          <div className="flex gap-x-2 items-center justify-between pt-2">
+            <Hint text="Attach an image" side="top">
+              <button
+                type="button"
+                onClick={attachment.openPicker}
+                disabled={isPending}
+                aria-label="Attach an image"
+                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 cursor-pointer"
+              >
+                <ImagePlusIcon className="size-4" />
+              </button>
+            </Hint>
             <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-1.5">
               <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
                 <span>&#8984;</span>Enter
@@ -131,7 +152,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
               <Button
               aria-label="Send message"
               className="ml-auto size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-              disabled={isPending || !content.trim()}
+              disabled={isPending || !canSend}
               type="submit"
               >
                 {

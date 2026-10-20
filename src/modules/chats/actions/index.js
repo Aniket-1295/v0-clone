@@ -11,6 +11,7 @@ import { spendCredit } from "@/lib/consume-credit";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
+import { parseImage } from "@/lib/attachments";
 import {
   connectSandbox,
   getLatestFragment,
@@ -34,10 +35,16 @@ const CHAT_LIST_SELECT = {
   project: { select: { id: true, name: true } },
 };
 
-/** Starts a chat from a prompt, in a project or as a draft, and kicks off generation. */
-export const createChat = async (value, projectId = null) => {
+/**
+ * Starts a chat from a prompt, in a project or as a draft, and kicks off generation.
+ * `image` ({ mimeType, data: base64 }) is an optional screenshot or mockup to recreate.
+ */
+export const createChat = async (value, projectId = null, image = null) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
+
+  const parsed = parseImage(image);
+  if (parsed.error) return fail(ActionErrorCode.INTERNAL, parsed.error);
 
   if (projectId) {
     const project = await db.project.findFirst({ where: { id: projectId, userId: user.id } });
@@ -54,7 +61,12 @@ export const createChat = async (value, projectId = null) => {
         userId: user.id,
         projectId,
         messages: {
-          create: { content: value, role: MessageRole.USER, type: MessageType.RESULT },
+          create: {
+            content: value,
+            role: MessageRole.USER,
+            type: MessageType.RESULT,
+            ...(parsed.image ? { attachments: { create: parsed.image } } : {}),
+          },
         },
       },
     });

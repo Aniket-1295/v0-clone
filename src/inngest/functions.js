@@ -32,14 +32,52 @@ Work efficiently:
 - The standard shadcn/ui components are installed with their usual API. Only read a component's source when you need a prop or variant you do not know.
 - Write the app with createOrUpdateFiles as early as possible, then refine it.`;
 
-/** Stored chat messages as Gemini contents, merging consecutive turns of the same role. */
-const toContents = (messages) =>
-  messages.reduce((contents, { role, text }) => {
+// Sent with the system prompt when the conversation has an attached image.
+const IMAGE_NOTE = `
+The user attached an image of a design (a screenshot or mockup). Recreate it as closely as you can: its layout, sections, colours, typography, spacing and components, built with Tailwind and shadcn/ui. Use the text you can read in it; where content is unreadable, use realistic placeholder content.
+Build only what the image shows, in app/page.tsx plus a few components if needed: do not add sections, pages, modals or features that are not in the image, and do not install packages (Tailwind, shadcn/ui and lucide-react are enough).`;
+// Only the newest images are sent to the model; older ones become a short note.
+const MAX_IMAGES = 2;
+
+/**
+ * Stored chat messages as Gemini contents, merging consecutive turns of the same role.
+ * Images stay as { attachmentId } parts here (step outputs must stay small) and are
+ * loaded by withImages() right before each model call.
+ */
+const toContents = (messages) => {
+  const contents = messages.reduce((contents, { role, text, attachmentIds = [] }) => {
+    const parts = [{ text }, ...attachmentIds.map((attachmentId) => ({ attachmentId }))];
     const last = contents[contents.length - 1];
-    if (last?.role === role) last.parts.push({ text });
-    else contents.push({ role, parts: [{ text }] });
+    if (last?.role === role) last.parts.push(...parts);
+    else contents.push({ role, parts });
     return contents;
   }, []);
+
+  let kept = 0;
+  for (const content of [...contents].reverse()) {
+    content.parts = content.parts
+      .reverse()
+      .map((part) => (part.attachmentId && ++kept > MAX_IMAGES ? { text: "(An image was attached here earlier.)" } : part))
+      .reverse();
+  }
+  return contents;
+};
+
+/** Replaces { attachmentId } parts with the image bytes Gemini expects. */
+const withImages = async (contents) => {
+  const ids = contents.flatMap((content) => content.parts.filter((part) => part.attachmentId).map((part) => part.attachmentId));
+  if (ids.length === 0) return contents;
+
+  const images = new Map(
+    (await db.attachment.findMany({ where: { id: { in: ids } }, select: { id: true, mimeType: true, data: true } })).map(
+      (image) => [image.id, { inlineData: { mimeType: image.mimeType, data: Buffer.from(image.data).toString("base64") } }]
+    )
+  );
+  return contents.map((content) => ({
+    ...content,
+    parts: content.parts.map((part) => (part.attachmentId ? images.get(part.attachmentId) ?? { text: "(Image unavailable.)" } : part)),
+  }));
+};
 
 export const codeAgentFunction = inngest.createFunction(
   {
@@ -117,11 +155,13 @@ export const codeAgentFunction = inngest.createFunction(
         orderBy: { createdAt: "asc" },
         // Negative take returns the LAST n rows while keeping ascending order.
         take: -MAX_HISTORY_MESSAGES,
+        include: { attachments: { select: { id: true } } },
       });
 
       const turns = messages.map((message) => ({
         role: message.role === MessageRole.ASSISTANT ? "model" : "user",
         text: message.content,
+        attachmentIds: message.attachments.map((attachment) => attachment.id),
       }));
 
       // The current prompt is the last stored message; put the code context just before it.
@@ -140,6 +180,8 @@ export const codeAgentFunction = inngest.createFunction(
     // where it failed. Model turns are sent back unchanged (Gemini 3 requires their
     // thought signatures on later turns).
     const contents = toContents(history);
+    const hasImage = history.some((turn) => turn.attachmentIds?.length);
+    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}`;
     const writtenFiles = {};
     let summary = "";
     // The last summary, kept in case the turn budget runs out while fixing an error.
@@ -153,8 +195,8 @@ export const codeAgentFunction = inngest.createFunction(
       const { content, model } = await step.run(`gemini-turn-${turn}`, async () => {
         await start(`turn-${turn}`, { kind: "think", label: "Thinking" });
         const result = await runGeminiTurn({
-          system: `${PROMPT}\n${EFFICIENCY_NOTE}`,
-          contents,
+          system,
+          contents: await withImages(contents),
           tools: CODE_AGENT_TOOLS,
           preferredModel: currentModel,
         });

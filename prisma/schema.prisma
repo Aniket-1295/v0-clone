@@ -87,8 +87,25 @@ model Message {
   fragments Fragment?
   // Progress of the agent run this prompt started (user messages only).
   steps AgentStep[]
+  // Images attached to a prompt (screenshot or mockup to recreate).
+  attachments Attachment[]
 
   @@index([chatId])
+}
+
+// An image attached to a user prompt. Resized in the browser before upload, so it is small
+// enough to keep in the database; served by /api/attachments/[id] to its owner.
+model Attachment {
+  id       String @id @default(cuid())
+  mimeType String
+  data     Bytes
+
+  createdAt DateTime @default(now())
+
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
 }
 
 // One visible step of an agent run (setting up, reading files, writing files, running a

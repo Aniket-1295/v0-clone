@@ -8,14 +8,18 @@ import { spendCredit } from "@/lib/consume-credit";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { refundCredits } from "@/lib/usage";
 import { closeRunningSteps } from "@/inngest/progress";
+import { parseImage } from "@/lib/attachments";
 
 const findOwnChat = (chatId, userId) => db.chat.findFirst({ where: { id: chatId, userId } });
 
-/** Sends a follow-up prompt in a chat and kicks off generation. */
-export const createMessages = async (value, chatId) => {
+/** Sends a follow-up prompt (optionally with an image to recreate) and kicks off generation. */
+export const createMessages = async (value, chatId, image = null) => {
   const user = await getCurrentUser();
 
   if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
+
+  const parsed = parseImage(image);
+  if (parsed.error) return fail(ActionErrorCode.INTERNAL, parsed.error);
 
   const chat = await findOwnChat(chatId, user.id);
 
@@ -31,6 +35,7 @@ export const createMessages = async (value, chatId) => {
         content: value,
         role: MessageRole.USER,
         type: MessageType.RESULT,
+        ...(parsed.image ? { attachments: { create: parsed.image } } : {}),
       },
     });
 
@@ -68,7 +73,8 @@ export const getMessages = async (chatId) => {
   const messages = await db.message.findMany({
     where: { chatId },
     orderBy: { updatedAt: "asc" },
-    include: { fragments: true },
+    // Attachment bytes are served separately by /api/attachments/[id].
+    include: { fragments: true, attachments: { select: { id: true, mimeType: true } } },
   });
 
   return ok(messages);
