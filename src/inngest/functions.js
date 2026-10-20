@@ -117,11 +117,19 @@ export const codeAgentFunction = inngest.createFunction(
     const contents = toContents(history);
     const writtenFiles = {};
     let summary = "";
+    // Stay on the model that answered last; switch only when its quota runs out.
+    let currentModel;
 
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
-      const { content } = await step.run(`gemini-turn-${turn}`, () =>
-        runGeminiTurn({ system: `${PROMPT}\n${EFFICIENCY_NOTE}`, contents, tools: CODE_AGENT_TOOLS })
+      const { content, model } = await step.run(`gemini-turn-${turn}`, () =>
+        runGeminiTurn({
+          system: `${PROMPT}\n${EFFICIENCY_NOTE}`,
+          contents,
+          tools: CODE_AGENT_TOOLS,
+          preferredModel: currentModel,
+        })
       );
+      currentModel = model;
       contents.push(content);
 
       const calls = (content.parts ?? []).filter((part) => part.functionCall).map((part) => part.functionCall);
