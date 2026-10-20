@@ -18,11 +18,14 @@ import {
   LogOutIcon,
   MessageSquarePlusIcon,
   MessagesSquareIcon,
+  MoonStarIcon,
   PanelLeftIcon,
   PlusIcon,
   SearchIcon,
+  SettingsIcon,
+  SmilePlusIcon,
   StarIcon,
-  SunMoonIcon,
+  SunIcon,
   UserIcon,
 } from "lucide-react";
 
@@ -218,58 +221,145 @@ const ProjectsGroup = ({ pathname }) => {
   );
 };
 
+const FEEDBACK_URL = "https://github.com/Aniket-1295/v0-clone/issues/new";
+
+// Device frame for the "System" theme option (no matching lucide icon).
+const SystemThemeIcon = ({ className }) => (
+  <svg viewBox="0 0 16 16" fill="none" className={className} aria-hidden="true">
+    <path d="M3 14.5V4a2.5 2.5 0 0 1 2.5-2.5h5A2.5 2.5 0 0 1 13 4v10.5H3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M3.75 4A1.75 1.75 0 0 1 5.5 2.25h5A1.75 1.75 0 0 1 12.25 4v4h-8.5V4Z" fill="currentColor" />
+    <path d="M9.5 11.5h1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const THEMES = [
+  { value: "system", label: "System", icon: SystemThemeIcon },
+  { value: "light", label: "Light", icon: SunIcon },
+  { value: "dark", label: "Dark", icon: MoonStarIcon },
+];
+
+const Avatar = ({ user, className }) =>
+  user?.imageUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={user.imageUrl} alt="" className={cn("shrink-0 rounded-full object-cover", className)} />
+  ) : (
+    <span className={cn("flex shrink-0 items-center justify-center rounded-full bg-muted", className)}>
+      <UserIcon className="size-3.5 text-muted-foreground" />
+    </span>
+  );
+
+const ThemeSwitcher = () => {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <div role="radiogroup" aria-label="Theme" className="flex items-center rounded-full border p-0.5">
+      {THEMES.map(({ value, label, icon: Icon }) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={theme === value}
+          aria-label={label}
+          title={label}
+          onClick={() => setTheme(value)}
+          className={cn(
+            "flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground cursor-pointer",
+            theme === value && "bg-background text-foreground ring-1 ring-border dark:bg-black dark:ring-neutral-700"
+          )}
+        >
+          <Icon className="size-3.5" />
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// One menu row: label on the left, icon or value on the right (v0 style).
+const rowClass = "h-9 justify-between rounded-md px-2.5 text-sm cursor-pointer";
+
 const AccountRow = () => {
   const { user } = useUser();
   const { openUserProfile, signOut } = useClerk();
-  const { theme, setTheme } = useTheme();
   const { data: usage } = useStatus();
   const credits = usage?.remainingPoints;
+  const name = displayName(user);
 
   return (
     <div className="flex items-center gap-2">
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent cursor-pointer">
-          {user?.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.imageUrl} alt="" className="size-6 shrink-0 rounded-full" />
-          ) : (
-            <UserIcon className="size-5" />
-          )}
-          <span className="truncate">{displayName(user)}</span>
+        <DropdownMenuTrigger className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-background px-2 text-sm font-medium transition-colors hover:bg-accent data-[state=open]:bg-accent dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:data-[state=open]:bg-neutral-800 cursor-pointer">
+          <Avatar user={user} className="size-5" />
+          <span className="truncate">{name}</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="start" className="w-56">
-          <DropdownMenuLabel className="truncate text-xs text-muted-foreground">
-            {user?.primaryEmailAddress?.emailAddress}
-          </DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => openUserProfile()}>
-            <UserIcon className="size-4" /> Manage account
-          </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="gap-2">
-              <SunMoonIcon className="size-4 text-muted-foreground" /> Theme
-            </DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-                  <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-          <DropdownMenuItem asChild>
-            <Link href="/pricing"><CrownIcon className="size-4" /> Upgrade plan</Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => signOut({ redirectUrl: "/" })}>
-            <LogOutIcon className="size-4" /> Sign out
-          </DropdownMenuItem>
+        <DropdownMenuContent
+          side="top"
+          align="start"
+          sideOffset={8}
+          className="w-64 rounded-xl p-0 shadow-xl dark:bg-[#0a0a0a]"
+        >
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{name}</p>
+              <p className="truncate text-sm text-muted-foreground">{user?.primaryEmailAddress?.emailAddress}</p>
+            </div>
+            <Avatar user={user} className="size-6" />
+          </div>
+          <DropdownMenuSeparator className="m-0" />
+
+          <div className="p-1.5">
+            <DropdownMenuItem className={rowClass} onSelect={() => openUserProfile()}>
+              Settings <SettingsIcon className="size-4" />
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className={rowClass}>
+              <Link href="/pricing">
+                Credits
+                <span className="tabular-nums text-muted-foreground">{credits ?? "–"}</span>
+              </Link>
+            </DropdownMenuItem>
+          </div>
+          <DropdownMenuSeparator className="m-0" />
+
+          <div className="p-1.5">
+            <DropdownMenuItem asChild className={rowClass}>
+              <a href={FEEDBACK_URL} target="_blank" rel="noreferrer">
+                Feedback <SmilePlusIcon className="size-4" />
+              </a>
+            </DropdownMenuItem>
+            <div className="flex h-9 items-center justify-between px-2.5 text-sm">
+              Theme <ThemeSwitcher />
+            </div>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className={rowClass}>More</DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent sideOffset={8} className="w-48 rounded-xl p-1.5 dark:bg-[#0a0a0a]">
+                  <DropdownMenuItem asChild className={rowClass}>
+                    <Link href="/pricing">Upgrade plan <CrownIcon className="size-4" /></Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className={rowClass}>
+                    <Link href="/templates">Templates <LayoutTemplateIcon className="size-4" /></Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className={rowClass}>
+                    <Link href="/">Home page <HomeIcon className="size-4" /></Link>
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+          </div>
+          <DropdownMenuSeparator className="m-0" />
+
+          <div className="p-1.5">
+            <DropdownMenuItem className={rowClass} onSelect={() => signOut({ redirectUrl: "/" })}>
+              Sign Out <LogOutIcon className="size-4" />
+            </DropdownMenuItem>
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
       {credits !== undefined && (
         <Hint text={`${credits} credits remaining`} side="top">
-          <Link href="/pricing" className="flex h-8 min-w-8 items-center justify-center rounded-md border px-2 text-xs font-medium hover:bg-accent">
+          <Link
+            href="/pricing"
+            className="flex h-9 min-w-9 items-center justify-center rounded-lg border bg-background px-3 text-sm font-medium tabular-nums transition-colors hover:bg-accent dark:bg-neutral-900 dark:hover:bg-neutral-800"
+          >
             {credits}
           </Link>
         </Hint>
