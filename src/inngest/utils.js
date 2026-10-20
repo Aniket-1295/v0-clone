@@ -1,15 +1,3 @@
-
-export function lastAssistantTextMessageContent(result){
-    const lastAssistantTextMessageIndex = result.output.findLastIndex(
-        (message) => message.role === "assistant"
-    )
-
-    const message = result.output[lastAssistantTextMessageIndex] 
-
-
-    return message?.content ? typeof message.content === "string" ? message.content : message.content.map((c)=>c.text).join("") : undefined
-}
-
 // Follow-up context: a list of the app's files plus the contents of the app's own source
 // files (not the stock shadcn/ui components), capped so tool calls stay small.
 const OWN_SOURCE_PATTERN = /^(app|components|lib|hooks)\/.*\.(tsx?|jsx?)$/;

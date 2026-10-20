@@ -1,15 +1,9 @@
 import { inngest } from "./client";
-import {
-  gemini,
-  createAgent,
-  createNetwork,
-  createTool,
-  createState,
-} from "@inngest/agent-kit";
 import Sandbox from "@e2b/code-interpreter";
-import z from "zod";
 import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
-import { buildFollowUpContext, lastAssistantTextMessageContent } from "./utils";
+import { buildFollowUpContext } from "./utils";
+import { generateText, runGeminiTurn, textOf } from "./gemini";
+import { CODE_AGENT_TOOLS, runTool } from "./tools";
 
 import  db  from "@/lib/db";
 import { refundCredits } from "@/lib/usage";
@@ -25,6 +19,17 @@ import { MessageRole, MessageType } from "@prisma/client";
 
 // Only the most recent messages are replayed to the agent as context.
 const MAX_HISTORY_MESSAGES = 20;
+// Upper bound on model turns (each is one model call plus its tool calls).
+const MAX_AGENT_TURNS = 15;
+
+/** Stored chat messages as Gemini contents, merging consecutive turns of the same role. */
+const toContents = (messages) =>
+  messages.reduce((contents, { role, text }) => {
+    const last = contents[contents.length - 1];
+    if (last?.role === role) last.parts.push({ text });
+    else contents.push({ role, parts: [{ text }] });
+    return contents;
+  }, []);
 
 export const codeAgentFunction = inngest.createFunction(
   {
@@ -66,8 +71,7 @@ export const codeAgentFunction = inngest.createFunction(
     });
 
     // Follow-ups: tell the agent what code is already there so it edits the existing
-    // app. Sent as a user message: appended to the system prompt, the context made
-    // Gemini return malformed tool calls.
+    // app. Sent as a user message just before the new prompt.
     const followUpContext = await step.run("get-follow-up-context", async () => {
       const fragment = await getLatestFragment(chatId);
       if (!fragment) return "";
@@ -76,251 +80,79 @@ export const codeAgentFunction = inngest.createFunction(
       return buildFollowUpContext(await snapshotFiles(sandbox));
     });
 
-    const previousMessages = await step.run(
-      "get-previous-messages",
-      async()=>{
-        const formattedMessages = [];
+    const history = await step.run("get-previous-messages", async () => {
+      const messages = await db.message.findMany({
+        where: { chatId },
+        orderBy: { createdAt: "asc" },
+        // Negative take returns the LAST n rows while keeping ascending order.
+        take: -MAX_HISTORY_MESSAGES,
+      });
 
-        const messages = await db.message.findMany({
-          where:{
-            chatId
-          },
-          orderBy:{
-            createdAt:"asc"
-          },
-          // Negative take returns the LAST n rows while keeping ascending order.
-          take: -MAX_HISTORY_MESSAGES
-        })
+      const turns = messages.map((message) => ({
+        role: message.role === MessageRole.ASSISTANT ? "model" : "user",
+        text: message.content,
+      }));
 
-        for(const message of messages){
-          formattedMessages.push({
-            type:"text",
-            role:message.role === "ASSISTANT" ? "assistant" : "user",
-            content:message.content
-          })
-        }
-
-        // The current prompt is the last stored message; put the code context just before it.
-        if(followUpContext){
-          formattedMessages.splice(Math.max(formattedMessages.length - 1, 0), 0, {
-            type:"text",
-            role:"user",
-            content:followUpContext
-          })
-        }
-
-        return formattedMessages
+      // The current prompt is the last stored message; put the code context just before it.
+      if (followUpContext) {
+        turns.splice(Math.max(turns.length - 1, 0), 0, { role: "user", text: followUpContext });
       }
-    )
+      // Older events may not have stored the prompt yet.
+      if (turns.at(-1)?.text !== event.data.value) {
+        turns.push({ role: "user", text: event.data.value });
+      }
 
-    const state = createState({
-      summary:"",
-      files:{}
-    }
-  ,
-  {
-    messages:previousMessages
-  }
-)
-
-    const codeAgent = createAgent({
-      name: "code-agent",
-      description: "An expert coding agent",
-      system: PROMPT,
-      model: gemini({ model: "gemini-2.5-flash" }),
-
-      tools: [
-        // 1. Terminal
-        createTool({
-          name: "terminal",
-          description: "Use the terminal to run commands",
-          parameters: z.object({
-            command: z.string(),
-          }),
-          handler: async ({ command }, { step }) => {
-            return await step?.run("terminal", async () => {
-              const buffers = { stdout: "", stderr: "" };
-
-              try {
-                const sandbox = await Sandbox.connect(sandboxId);
-
-                const result = await sandbox.commands.run(command, {
-                  onStdout: (data) => {
-                    buffers.stdout += data;
-                  },
-
-                  onStderr: (data) => {
-                    buffers.stderr += data;
-                  },
-                });
-
-                return result.stdout;
-              } catch (error) {
-                console.log(
-                  `Command failed: ${error} \n stdout: ${buffers.stdout}\n stderr: ${buffers.stderr}`
-                );
-
-                return `Command failed: ${error} \n stdout: ${buffers.stdout}\n stderr: ${buffers.stderr}`;
-              }
-            });
-          },
-        }),
-
-        // 2. createOrUpdateFiles
-        createTool({
-          name: "createOrUpdateFiles",
-          description: "Create or update files in the sanbox",
-          parameters: z.object({
-            files: z.array(
-              z.object({
-                path: z.string(),
-                content: z.string(),
-              })
-            ),
-          }),
-
-          handler: async ({ files }, { step, network }) => {
-            const newFiles = await step?.run(
-              "createOrUpdateFiles",
-              async () => {
-                try {
-                  const updatedFiles = network?.state?.data.files || {};
-
-                  const sanbox = await Sandbox.connect(sandboxId);
-
-                  for (const file of files) {
-                    await sanbox.files.write(file.path, file.content);
-                    updatedFiles[file.path] = file.content;
-                  }
-
-                  return updatedFiles;
-                } catch (error) {
-                  return "Error" + error;
-                }
-              }
-            );
-
-            if (typeof newFiles === "object") {
-              network.state.data.files = newFiles;
-            }
-          },
-        }),
-
-        // 3. readFiles
-        createTool({
-          name: "readFiles",
-          description: "Read files in the sandbox",
-
-          parameters: z.object({
-            files: z.array(z.string()),
-          }),
-          handler: async ({ files }, { step }) => {
-            return await step?.run("readFiles", async () => {
-              try {
-                const sanbox = await Sandbox.connect(sandboxId);
-
-                const contents = [];
-
-                for (const file of files) {
-                  const content = await sanbox.files.read(file);
-                  contents.push({ path: file, content });
-                }
-                return JSON.stringify(contents);
-              } catch (error) {
-                return "Error" + error;
-              }
-            });
-          },
-        }),
-      ],
-
-      lifecycle: {
-        onResponse: async ({ result, network }) => {
-          const lastAssistantMessageText =
-            lastAssistantTextMessageContent(result);
-
-          if (lastAssistantMessageText && network) {
-            if (lastAssistantMessageText.includes("<task_summary>")) {
-              network.state.data.summary = lastAssistantMessageText;
-            }
-          }
-
-          return result;
-        },
-      },
-
-
+      return turns;
     });
 
-    const network = createNetwork({
-      name: "coding-agent-network",
-      agents: [codeAgent],
-      maxIter: 10,
+    // Agent loop: each model turn and each tool call is its own step, so a retry resumes
+    // where it failed. Model turns are sent back unchanged (Gemini 3 requires their
+    // thought signatures on later turns).
+    const contents = toContents(history);
+    const writtenFiles = {};
+    let summary = "";
 
-      router: async ({ network }) => {
-        const summary = network.state.data.summary;
+    for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
+      const { content } = await step.run(`gemini-turn-${turn}`, () =>
+        runGeminiTurn({ system: PROMPT, contents, tools: CODE_AGENT_TOOLS })
+      );
+      contents.push(content);
 
-        if (summary) {
-          return;
+      const calls = (content.parts ?? []).filter((part) => part.functionCall).map((part) => part.functionCall);
+
+      if (calls.length === 0) {
+        const text = textOf(content);
+        if (text.includes("<task_summary>")) {
+          summary = text;
+          break;
         }
-
-        return codeAgent;
-      },
-    });
-
-    const result = await network.run(event.data.value,{state});
-
-    const fragmentTitleGenerator = createAgent({
-      name:"fragment-title-generator",
-      description:"Generate a title for the fragment",
-      system:FRAGMENT_TITLE_PROMPT,
-      model:gemini({model:"gemini-2.5-flash"})
-    })
-
-    const responseGenerator = createAgent({
-      name:"response-generator",
-      description:"Generate a response for the fragment",
-      system:RESPONSE_PROMPT,
-      model:gemini
-      ({model:"gemini-2.5-flash"})
-    })
-
-    const {output:fragmentTitleOutput} = await fragmentTitleGenerator.run(result.state.data.summary)
-
-    const {output:responseOutput} = await responseGenerator.run(
-      result.state.data.summary
-    )
-
-    const generateFragmentTitle = ()=>{
-      if(fragmentTitleOutput[0].type !=="text"){
-        return "Untitled"
+        contents.push({
+          role: "user",
+          parts: [{ text: "Continue the task with the tools. When everything is done, reply with the <task_summary>." }],
+        });
+        continue;
       }
 
-      if(Array.isArray(fragmentTitleOutput[0].content)){
-            return fragmentTitleOutput[0].content.map((c) => c).join("");
+      const responses = [];
+      for (const [index, call] of calls.entries()) {
+        const { part, writtenFiles: written } = await step.run(`tool-${turn}-${index}-${call.name}`, () =>
+          runTool(call, sandboxId)
+        );
+        Object.assign(writtenFiles, written);
+        responses.push(part);
       }
-      else{
-        return fragmentTitleOutput[0].content
-      }
+      contents.push({ role: "user", parts: responses });
     }
 
+    const isError = !summary || Object.keys(writtenFiles).length === 0;
 
-    const generateResponse = ()=>{
-      if (responseOutput[0].type !== "text") {
-       return "Here you go";
-     }
+    const fragmentTitle = isError
+      ? ""
+      : await step.run("generate-fragment-title", () => generateText({ system: FRAGMENT_TITLE_PROMPT, prompt: summary }));
 
-     if (Array.isArray(responseOutput[0].content)) {
-       return responseOutput[0].content.map((c) => c).join("");
-     } else {
-       return responseOutput[0].content;
-     }
-   }
-
-
-    const isError =
-      !result.state.data.summary ||
-      Object.keys(result.state.data.files || {}).length === 0;
+    const response = isError
+      ? ""
+      : await step.run("generate-response", () => generateText({ system: RESPONSE_PROMPT, prompt: summary }));
 
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await Sandbox.connect(sandboxId);
@@ -348,7 +180,6 @@ export const codeAgentFunction = inngest.createFunction(
         })
       }
 
-
       // Store the whole app tree, not just what the agent wrote this run,
       // so any version can rebuild the app in a fresh sandbox.
       const sandbox = await Sandbox.connect(sandboxId);
@@ -357,14 +188,14 @@ export const codeAgentFunction = inngest.createFunction(
       return await db.message.create({
         data:{
           chatId,
-          content:generateResponse(),
+          content:response || "Here you go",
           role:MessageRole.ASSISTANT,
           type:MessageType.RESULT,
           fragments:{
             create:{
               sandboxUrl:sandboxUrl,
               sandboxId:sandboxId,
-              title:generateFragmentTitle(),
+              title:fragmentTitle || "Untitled",
               files
             }
           }
@@ -372,12 +203,11 @@ export const codeAgentFunction = inngest.createFunction(
       })
     })
 
-   
     return {
       url: sandboxUrl,
-      title: "Untitled",
-      files: result.state.data.files,
-      summary: result.state.data.summary,
+      title: fragmentTitle || "Untitled",
+      files: writtenFiles,
+      summary,
     };
   }
 );
