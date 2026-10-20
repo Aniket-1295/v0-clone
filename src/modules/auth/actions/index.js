@@ -14,30 +14,32 @@ export const onBoardUser = async () => {
       };
     }
 
-    const { id, firstName, lastName, imageUrl, emailAddresses } = user;
+    const { id, firstName, lastName, imageUrl, emailAddresses, primaryEmailAddress } = user;
+    const email = (primaryEmailAddress ?? emailAddresses[0])?.emailAddress || "";
+    const profile = {
+      name:
+        firstName && lastName
+          ? `${firstName} ${lastName}`
+          : firstName || lastName || null,
+      image: imageUrl || null,
+      email,
+    };
 
-    const newUser = await db.user.upsert({
-      where: {
-        clerkId: id,
-      },
-      update: {
-        name:
-          firstName && lastName
-            ? `${firstName} ${lastName}`
-            : firstName || lastName || null,
-        image: imageUrl || null,
-        email: emailAddresses[0]?.emailAddress || "",
-      },
-      create: {
-        clerkId: id,
-        name:
-          firstName && lastName
-            ? `${firstName} ${lastName}`
-            : firstName || lastName || null,
-        image: imageUrl || null,
-        email: emailAddresses[0]?.emailAddress || "",
-      },
-    });
+    let newUser = await db.user.findUnique({ where: { clerkId: id } });
+
+    if (newUser) {
+      newUser = await db.user.update({ where: { clerkId: id }, data: profile });
+    } else {
+      // A user can come back with a new Clerk id (e.g. after moving from Clerk's
+      // development instance to production). Their email is verified by Clerk, so
+      // link the existing row instead of failing on the unique email.
+      const verified = (primaryEmailAddress ?? emailAddresses[0])?.verification?.status === "verified";
+      const existing = verified && email ? await db.user.findUnique({ where: { email } }) : null;
+
+      newUser = existing
+        ? await db.user.update({ where: { id: existing.id }, data: { ...profile, clerkId: id } })
+        : await db.user.create({ data: { ...profile, clerkId: id } });
+    }
 
     return {
       success: true,
