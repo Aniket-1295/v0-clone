@@ -98,7 +98,7 @@ model AgentStep {
   // Inngest run id plus a per-run key, so a retried step updates its row.
   runId  String
   key    String
-  kind   String // setup | think | read | write | command | finish
+  kind   String // setup | think | read | write | command | check | finish
   label  String
   status String // running | done | error | stopped
 

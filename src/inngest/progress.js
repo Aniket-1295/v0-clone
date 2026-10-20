@@ -38,11 +38,11 @@ export const startStep = ({ runId, chatId, promptId }, key, { kind, label }) =>
   });
 
 /**
- * Ends one step of a run with `status` ("done" or "error"). Only a running step changes:
- * a step the user stopped while it was in flight stays "stopped".
+ * Ends one step of a run with `status` ("done" or "error"), optionally with a new label.
+ * Only a running step changes: a step the user stopped while in flight stays "stopped".
  */
-export const finishStep = ({ runId }, key, status) =>
-  db.agentStep.updateMany({ where: { runId, key, status: "running" }, data: { status } });
+export const finishStep = ({ runId }, key, status, label) =>
+  db.agentStep.updateMany({ where: { runId, key, status: "running" }, data: { status, ...(label ? { label } : {}) } });
 
 /**
  * Marks unfinished steps, e.g. as "error" or "stopped". `where` must name a runId or a
