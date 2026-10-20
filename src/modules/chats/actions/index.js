@@ -11,6 +11,7 @@ import { spendCredit } from "@/lib/consume-credit";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
+import { connectSandbox, getLatestFragment, getOrCreateChatSandbox, isHostedPreview } from "@/lib/sandbox";
 
 const UNAUTHORIZED = () => fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
 const titleFrom = (prompt) => {
@@ -175,5 +176,41 @@ export const createChatFromTemplate = async (slug) => {
   } catch (error) {
     console.error("createChatFromTemplate failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Could not start a chat from this template.");
+  }
+};
+
+/**
+ * Called by the chat page while it is open. Extends the chat's sandbox timeout, or rebuilds
+ * the sandbox from the latest version when it has expired so the preview works again.
+ * Returns { status: "alive" | "rebuilt" | "idle" }.
+ */
+export const wakeChatSandbox = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { sandboxId: true } });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  try {
+    if (chat.sandboxId && (await connectSandbox(chat.sandboxId))) {
+      return ok({ status: "alive" });
+    }
+
+    const [fragment, lastMessage] = await Promise.all([
+      getLatestFragment(chatId),
+      db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { role: true } }),
+    ]);
+
+    // Nothing to rebuild yet, a generation is running (the agent restores the sandbox
+    // itself), or the version is a template served by this app (no sandbox needed).
+    if (!fragment || lastMessage?.role === MessageRole.USER || isHostedPreview(fragment)) {
+      return ok({ status: "idle" });
+    }
+
+    await getOrCreateChatSandbox(chatId);
+    return ok({ status: "rebuilt" });
+  } catch (error) {
+    console.error("wakeChatSandbox failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not start the preview. Please refresh.");
   }
 };

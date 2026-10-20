@@ -25,6 +25,7 @@ import { FileExplorer } from "./file-explorer";
 import { Hint } from "@/components/ui/hint";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useKeepSandboxAlive } from "@/modules/chats/hooks/chat";
 
 const EmptyPane = ({ icon: Icon, text }) => (
   <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -126,6 +127,8 @@ const ProjectView = ({ chatId, initialTab = "preview" }) => {
   // Phones get one pane at a time instead of side-by-side panels.
   const [mobilePane, setMobilePane] = useState(initialTab === "code" ? "preview" : "chat");
   const isMobile = useIsMobile();
+
+  useKeepSandboxAlive(chatId);
 
   const chat = (
     <MessageContainer
