@@ -20,7 +20,13 @@ import { MessageRole, MessageType } from "@prisma/client";
 // Only the most recent messages are replayed to the agent as context.
 const MAX_HISTORY_MESSAGES = 20;
 // Upper bound on model turns (each is one model call plus its tool calls).
-const MAX_AGENT_TURNS = 15;
+const MAX_AGENT_TURNS = 25;
+// Gemini 3 follows "read the source if unsure" very literally and spends a turn per file.
+const EFFICIENCY_NOTE = `
+Work efficiently:
+- Call several tools in one turn when they are independent (for example, read several files at once).
+- The standard shadcn/ui components are installed with their usual API. Only read a component's source when you need a prop or variant you do not know.
+- Write the app with createOrUpdateFiles as early as possible, then refine it.`;
 
 /** Stored chat messages as Gemini contents, merging consecutive turns of the same role. */
 const toContents = (messages) =>
@@ -114,7 +120,7 @@ export const codeAgentFunction = inngest.createFunction(
 
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
       const { content } = await step.run(`gemini-turn-${turn}`, () =>
-        runGeminiTurn({ system: PROMPT, contents, tools: CODE_AGENT_TOOLS })
+        runGeminiTurn({ system: `${PROMPT}\n${EFFICIENCY_NOTE}`, contents, tools: CODE_AGENT_TOOLS })
       );
       contents.push(content);
 
