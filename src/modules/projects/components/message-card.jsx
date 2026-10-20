@@ -2,7 +2,9 @@ import { Response } from "@/components/ai-elements/response";
 import { cn } from "@/lib/utils";
 import { MessageRole, MessageType } from "@prisma/client";
 import { format } from "date-fns";
-import { AlertCircleIcon, ChevronRightIcon, Code2Icon } from "lucide-react";
+import { AlertCircleIcon, ChevronRightIcon, Code2Icon, RotateCcwIcon } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { Hint } from "@/components/ui/hint";
 import Image from "next/image";
 import React from "react";
 
@@ -11,7 +13,7 @@ const FragmentCard = ({ fragment, isActiveFragment, onFragmentClick }) => {
     <button
       type="button"
       className={cn(
-        "flex w-full max-w-sm items-center gap-3 rounded-lg border bg-card p-2 pr-3 text-start transition-colors hover:bg-accent cursor-pointer",
+        "flex w-full min-w-0 max-w-sm items-center gap-3 rounded-lg border bg-card p-2 pr-3 text-start transition-colors hover:bg-accent cursor-pointer",
         isActiveFragment && "border-foreground/40 bg-accent"
       )}
       onClick={() => onFragmentClick(fragment)}
@@ -30,6 +32,21 @@ const FragmentCard = ({ fragment, isActiveFragment, onFragmentClick }) => {
   );
 };
 
+// Shown next to an earlier version: makes it the latest version again.
+const RestoreButton = ({ onRestore, isRestoring, disabled }) => (
+  <Hint text="Restore this version" side="top">
+    <button
+      type="button"
+      onClick={onRestore}
+      disabled={disabled}
+      className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border bg-background px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+    >
+      {isRestoring ? <Spinner className="size-3.5" /> : <RotateCcwIcon className="size-3.5" />}
+      {isRestoring ? "Restoring…" : "Restore"}
+    </button>
+  </Hint>
+);
+
 const UserMessage = ({ content }) => {
   return (
     <div className="flex justify-end pl-10">
@@ -47,6 +64,10 @@ const AssistantMessage = ({
   isActiveFragment,
   onFragmentClick,
   type,
+  canRestore,
+  onRestore,
+  isRestoring,
+  restoreDisabled,
 }) => {
   const isError = type === MessageType.ERROR;
 
@@ -77,11 +98,16 @@ const AssistantMessage = ({
           <Response>{content}</Response>
         )}
         {fragment && type === MessageType.RESULT && (
-          <FragmentCard
-            fragment={fragment}
-            isActiveFragment={isActiveFragment}
-            onFragmentClick={onFragmentClick}
-          />
+          <div className="flex max-w-md items-center gap-2">
+            <FragmentCard
+              fragment={fragment}
+              isActiveFragment={isActiveFragment}
+              onFragmentClick={onFragmentClick}
+            />
+            {canRestore && (
+              <RestoreButton onRestore={onRestore} isRestoring={isRestoring} disabled={restoreDisabled} />
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -96,6 +122,7 @@ const MessageCard = ({
   isActiveFragment,
   onFragmentClick,
   type,
+  ...restoreProps
 }) => {
   if (role === MessageRole.ASSISTANT) {
     return (
@@ -106,6 +133,7 @@ const MessageCard = ({
         isActiveFragment={isActiveFragment}
         onFragmentClick={onFragmentClick}
         type={type}
+        {...restoreProps}
       />
     );
   }

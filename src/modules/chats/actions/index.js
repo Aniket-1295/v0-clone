@@ -11,7 +11,13 @@ import { spendCredit } from "@/lib/consume-credit";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
-import { connectSandbox, getLatestFragment, getOrCreateChatSandbox, isHostedPreview } from "@/lib/sandbox";
+import {
+  connectSandbox,
+  getLatestFragment,
+  getOrCreateChatSandbox,
+  isHostedPreview,
+  restoreFragment,
+} from "@/lib/sandbox";
 
 const UNAUTHORIZED = () => fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
 const titleFrom = (prompt) => {
@@ -212,5 +218,37 @@ export const wakeChatSandbox = async (chatId) => {
   } catch (error) {
     console.error("wakeChatSandbox failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Could not start the preview. Please refresh.");
+  }
+};
+
+/**
+ * Makes an earlier version the latest one again by saving a copy of it as a new version
+ * (history is never rewritten). Costs no credit. Returns the new message.
+ */
+export const restoreVersion = async (chatId, fragmentId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { sandboxId: true } });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  const [fragment, latest, lastMessage] = await Promise.all([
+    db.fragment.findFirst({ where: { id: fragmentId, message: { chatId } } }),
+    getLatestFragment(chatId),
+    db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { role: true } }),
+  ]);
+
+  if (!fragment) return fail(ActionErrorCode.NOT_FOUND, "Version not found.");
+  if (fragment.id === latest?.id) return fail(ActionErrorCode.INTERNAL, "This is already the latest version.");
+  if (lastMessage?.role === MessageRole.USER) {
+    return fail(ActionErrorCode.INTERNAL, "Wait for the current generation to finish, then try again.");
+  }
+
+  try {
+    const message = await restoreFragment(chatId, fragment, chat.sandboxId);
+    return ok(message);
+  } catch (error) {
+    console.error("restoreVersion failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not restore this version. Please try again.");
   }
 };
