@@ -1,5 +1,7 @@
 import {
     useGetMessages,
+    useGetAgentSteps,
+    useStopGeneration,
     prefetchMessages,
   } from "@/modules/messages/hooks/message";
   import React, { useEffect, useRef } from "react";
@@ -27,6 +29,16 @@ import {
       isError,
       error,
     } = useGetMessages(chatId);
+
+    const lastMessage = messages?.[messages.length - 1];
+    const isLastMessageUser = lastMessage?.role === MessageRole.USER
+    const { data: steps } = useGetAgentSteps(chatId, isLastMessageUser);
+    const stop = useStopGeneration(chatId);
+
+    // The run just ended: fetch its final step states once.
+    useEffect(() => {
+      if (!isLastMessageUser) queryClient.invalidateQueries({ queryKey: ["steps", chatId] });
+    }, [isLastMessageUser, chatId, queryClient]);
   
     useEffect(() => {
       if (chatId) {
@@ -35,8 +47,9 @@ import {
     }, [chatId, queryClient]);
   
     useEffect(()=>{
+      // The newest reply with a version; "Stopped" and error replies have none.
       const lastAssistantMessage = messages?.findLast(
-        (message) => message.role === MessageRole.ASSISTANT
+        (message) => message.role === MessageRole.ASSISTANT && message.fragments
       );
   
       // Keyed on the sandbox URL too, so a rebuilt sandbox refreshes the preview.
@@ -81,9 +94,20 @@ import {
       );
     }
   
-    const lastMessage = messages[messages.length - 1];
-    const isLastMessageUser = lastMessage.role === MessageRole.USER
     const latestFragmentId = messages.findLast((message) => message.fragments)?.fragments.id
+
+    const stepsByPrompt = (steps ?? []).reduce((groups, step) => {
+      (groups[step.promptId] ??= []).push(step)
+      return groups
+    }, {})
+    // Each reply's steps belong to the user message just before it.
+    const promptIdBefore = (index) => messages.slice(0, index).findLast((message) => message.role === MessageRole.USER)?.id
+
+    const onStop = () => {
+      stop.mutate(undefined, {
+        onError: (error) => showActionError(error, router, "Could not stop the generation."),
+      })
+    }
 
     const onRestore = (fragment) => {
       restore.mutate(fragment.id, {
@@ -96,7 +120,7 @@ import {
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-5">
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <MessageCard 
             key={message.id}
             content={message.content}
@@ -113,9 +137,10 @@ import {
             onRestore={() => onRestore(message.fragments)}
             isRestoring={restore.isPending && restore.variables === message.fragments?.id}
             restoreDisabled={restore.isPending || isLastMessageUser}
+            steps={message.role === MessageRole.ASSISTANT ? stepsByPrompt[promptIdBefore(index)] : undefined}
             />
           ))}
-          {isLastMessageUser && <MessageLoading/>}
+          {isLastMessageUser && <MessageLoading steps={stepsByPrompt[lastMessage.id]} startedAt={lastMessage.createdAt}/>}
           <div ref={bottomRef}/>
           </div>
         </div>
@@ -123,7 +148,7 @@ import {
         <div className="relative p-3 pt-1">
              <div className="absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-transparent to-background pointer-events-none" />
              <div className="mx-auto max-w-3xl">
-               <MessageForm chatId={chatId}/>
+               <MessageForm chatId={chatId} isGenerating={isLastMessageUser} onStop={onStop} isStopping={stop.isPending}/>
              </div>
         </div>
       </div>

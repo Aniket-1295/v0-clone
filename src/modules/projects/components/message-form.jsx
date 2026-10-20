@@ -2,7 +2,7 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon } from "lucide-react";
+import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
@@ -28,7 +28,8 @@ const formSchema = z.object({
 
 
 
-const MessageForm = ({chatId}) => {
+// While a generation runs (isGenerating) the send button becomes Stop.
+const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false}) => {
   const [isFocused, setIsFocused] = useState(false);
   const router = useRouter();
 
@@ -50,6 +51,7 @@ const MessageForm = ({chatId}) => {
 
  
   const onSubmit = async (values) => {
+    if (isGenerating) return;
     try {
       await mutateAsync(values.content)
       form.reset()
@@ -114,16 +116,29 @@ const MessageForm = ({chatId}) => {
               </kbd>
               to send
             </div>
-            <Button
-            aria-label="Send message"
-            className="ml-auto size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-            disabled={isPending || !content.trim()}
-            type="submit"
-            >
-              {
-                isPending ? (<Spinner/>) : (<ArrowUpIcon className="size-4"/>)
-              }
-            </Button>
+            {isGenerating ? (
+              <Button
+              aria-label="Stop generating"
+              title="Stop"
+              className="ml-auto size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:opacity-70"
+              disabled={isStopping}
+              type="button"
+              onClick={onStop}
+              >
+                {isStopping ? <Spinner/> : <SquareIcon className="size-3 fill-current"/>}
+              </Button>
+            ) : (
+              <Button
+              aria-label="Send message"
+              className="ml-auto size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+              disabled={isPending || !content.trim()}
+              type="submit"
+              >
+                {
+                  isPending ? (<Spinner/>) : (<ArrowUpIcon className="size-4"/>)
+                }
+              </Button>
+            )}
          </div>
         </form>
       </Form>

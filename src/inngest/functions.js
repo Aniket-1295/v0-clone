@@ -4,6 +4,7 @@ import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
 import { buildFollowUpContext } from "./utils";
 import { generateText, runGeminiTurn, textOf } from "./gemini";
 import { CODE_AGENT_TOOLS, runTool } from "./tools";
+import { closeRunningSteps, describeCall, finishStep, startStep } from "./progress";
 
 import  db  from "@/lib/db";
 import { refundCredits } from "@/lib/usage";
@@ -40,11 +41,14 @@ const toContents = (messages) =>
 export const codeAgentFunction = inngest.createFunction(
   {
     id: "code-agent",
+    // The Stop button (stopGeneration) sends this; the run ends at its next step.
+    cancelOn: [{ event: "code-agent/cancel", if: "async.data.chatId == event.data.chatId" }],
     // Runs once all retries are exhausted: unblock the UI and give the credit back.
     onFailure: async ({ event, step }) => {
       const { chatId, projectId, userId } = event.data.event.data;
 
       await step.run("write-error-message", async () => {
+        if (event.data.run_id) await closeRunningSteps({ runId: event.data.run_id }, "error");
         return await db.message.create({
           data: {
             // Events sent before projects held chats carry projectId; the migration gave
@@ -66,13 +70,31 @@ export const codeAgentFunction = inngest.createFunction(
   },
   { event: "code-agent/run" },
 
-  async ({ event, step }) => {
+  async ({ event, step, runId }) => {
     const chatId = event.data.chatId ?? event.data.projectId;
+
+    // The prompt this run answers (the latest message); progress steps hang off it.
+    const promptId = await step.run("find-prompt", async () => {
+      const last = await db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { id: true, role: true } });
+      return last?.role === MessageRole.USER ? last.id : null;
+    });
+    // Progress for the chat UI (skipped for old events whose prompt is not stored).
+    const run = { runId, chatId, promptId };
+    const start = (key, step) => (promptId ? startStep(run, key, step) : null);
+    const finish = (key, status = "done") => (promptId ? finishStep(run, key, status) : null);
+
+    // When the user pressed Stop, a reply was written after the prompt; save nothing more.
+    const wasStopped = async () => {
+      const last = await db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { id: true } });
+      return !!promptId && last?.id !== promptId;
+    };
 
     // Step-1: reuse the chat's sandbox so follow-ups build on the existing code;
     // recreate it from the latest version (or the template's code) if it has expired.
     const sandboxId = await step.run("get-sandbox-id", async () => {
+      await start("setup", { kind: "setup", label: "Set up the workspace" });
       const { sandbox } = await getOrCreateChatSandbox(chatId);
+      await finish("setup");
       return sandbox.sandboxId;
     });
 
@@ -121,14 +143,17 @@ export const codeAgentFunction = inngest.createFunction(
     let currentModel;
 
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
-      const { content, model } = await step.run(`gemini-turn-${turn}`, () =>
-        runGeminiTurn({
+      const { content, model } = await step.run(`gemini-turn-${turn}`, async () => {
+        await start(`turn-${turn}`, { kind: "think", label: "Thinking" });
+        const result = await runGeminiTurn({
           system: `${PROMPT}\n${EFFICIENCY_NOTE}`,
           contents,
           tools: CODE_AGENT_TOOLS,
           preferredModel: currentModel,
-        })
-      );
+        });
+        await finish(`turn-${turn}`);
+        return result;
+      });
       currentModel = model;
       contents.push(content);
 
@@ -149,9 +174,13 @@ export const codeAgentFunction = inngest.createFunction(
 
       const responses = [];
       for (const [index, call] of calls.entries()) {
-        const { part, writtenFiles: written } = await step.run(`tool-${turn}-${index}-${call.name}`, () =>
-          runTool(call, sandboxId)
-        );
+        const { part, writtenFiles: written } = await step.run(`tool-${turn}-${index}-${call.name}`, async () => {
+          const key = `tool-${turn}-${index}`;
+          await start(key, describeCall(call));
+          const result = await runTool(call, sandboxId);
+          await finish(key, result.part.functionResponse.response?.error ? "error" : "done");
+          return result;
+        });
         Object.assign(writtenFiles, written);
         responses.push(part);
       }
@@ -162,7 +191,10 @@ export const codeAgentFunction = inngest.createFunction(
 
     const fragmentTitle = isError
       ? ""
-      : await step.run("generate-fragment-title", () => generateText({ system: FRAGMENT_TITLE_PROMPT, prompt: summary }));
+      : await step.run("generate-fragment-title", async () => {
+          await start("finish", { kind: "finish", label: "Finishing up" });
+          return generateText({ system: FRAGMENT_TITLE_PROMPT, prompt: summary });
+        });
 
     const response = isError
       ? ""
@@ -176,11 +208,19 @@ export const codeAgentFunction = inngest.createFunction(
     // The run finished without a usable result: give the credit back, like onFailure does.
     if (isError && event.data.userId) {
       await step.run("refund-credit-on-error", async () => {
+        // A stopped run was already refunded by stopGeneration.
+        if (await wasStopped()) return null;
         return await refundCredits(event.data.userId);
       });
     }
 
     await step.run("save-result" , async()=>{
+      if (await wasStopped()) return null;
+
+      if (promptId) {
+        await closeRunningSteps({ runId }, isError ? "error" : "done");
+      }
+
       if(isError){
         return await db.message.create({
           data:{

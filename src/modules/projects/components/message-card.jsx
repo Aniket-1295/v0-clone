@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { AlertCircleIcon, ChevronRightIcon, Code2Icon, RotateCcwIcon } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Hint } from "@/components/ui/hint";
+import AgentProgress from "./agent-progress";
 import Image from "next/image";
 import React from "react";
 
@@ -68,6 +69,7 @@ const AssistantMessage = ({
   onRestore,
   isRestoring,
   restoreDisabled,
+  steps,
 }) => {
   const isError = type === MessageType.ERROR;
 
@@ -89,6 +91,7 @@ const AssistantMessage = ({
       </div>
 
       <div className="flex flex-col gap-y-3 pl-8 text-sm">
+        {steps?.length > 0 && <AgentProgress steps={steps} />}
         {isError ? (
           <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-700 dark:text-red-400">
             <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />

@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MessageRole } from "@prisma/client";
 import { unwrap } from "@/lib/action-result";
-import { createMessages, getMessages } from "../actions";
+import { createMessages, getAgentSteps, getMessages, stopGeneration } from "../actions";
 
 const POLL_INTERVAL_MS = 3000;
+const STEPS_POLL_INTERVAL_MS = 1500;
 
 export const prefetchMessages = async(queryClient , chatId)=>{
     await queryClient.prefetchQuery({
@@ -48,6 +49,30 @@ export const useCreateMessages = (chatId)=>{
             queryClient.invalidateQueries({
                 queryKey:["projects"]
             })
+        }
+    })
+}
+
+
+// Agent progress for the chat. Polls quickly only while a generation is running.
+export const useGetAgentSteps = (chatId, isGenerating)=>{
+    return useQuery({
+        queryKey:["steps" , chatId],
+        queryFn:async()=>unwrap(await getAgentSteps(chatId)),
+        enabled:!!chatId,
+        refetchInterval:isGenerating ? STEPS_POLL_INTERVAL_MS : false,
+    })
+}
+
+export const useStopGeneration = (chatId)=>{
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn:async()=>unwrap(await stopGeneration(chatId)),
+        onSuccess:()=>{
+            queryClient.invalidateQueries({ queryKey:["messages" , chatId] })
+            queryClient.invalidateQueries({ queryKey:["steps" , chatId] })
+            queryClient.invalidateQueries({ queryKey:["status"] })
         }
     })
 }
