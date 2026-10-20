@@ -9,11 +9,17 @@ import {
   import MessageCard from "./message-card";
   import MessageForm from "./message-form";
   import MessageLoading from "./message-loader";
+  import { useRouter } from "next/navigation";
+  import { toast } from "sonner";
+  import { useRestoreVersion } from "@/modules/chats/hooks/chat";
+  import { showActionError } from "@/lib/show-action-error";
   
   const MessageContainer = ({ chatId, activeFragment, setActiveFragment, onFragmentOpen }) => {
     const queryClient = useQueryClient();
     const bottomRef = useRef(null);
     const lastAssistantMessageIdRef = useRef(null);
+    const router = useRouter();
+    const restore = useRestoreVersion(chatId);
   
     const {
       data: messages,
@@ -77,6 +83,14 @@ import {
   
     const lastMessage = messages[messages.length - 1];
     const isLastMessageUser = lastMessage.role === MessageRole.USER
+    const latestFragmentId = messages.findLast((message) => message.fragments)?.fragments.id
+
+    const onRestore = (fragment) => {
+      restore.mutate(fragment.id, {
+        onSuccess: () => toast.success(`Restored "${fragment.title}"`),
+        onError: (error) => showActionError(error, router, "Could not restore this version."),
+      })
+    }
   
     return (
       <div className="flex flex-col flex-1 min-h-0">
@@ -95,6 +109,10 @@ import {
               onFragmentOpen?.()
             }}
             type={message.type}
+            canRestore={!!message.fragments && message.fragments.id !== latestFragmentId}
+            onRestore={() => onRestore(message.fragments)}
+            isRestoring={restore.isPending && restore.variables === message.fragments?.id}
+            restoreDisabled={restore.isPending || isLastMessageUser}
             />
           ))}
           {isLastMessageUser && <MessageLoading/>}

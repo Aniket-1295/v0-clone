@@ -1,6 +1,6 @@
 import Sandbox, { NotFoundError } from "@e2b/code-interpreter";
 import db from "@/lib/db";
-import { MessageType } from "@prisma/client";
+import { MessageRole, MessageType } from "@prisma/client";
 
 export const SANDBOX_TEMPLATE = "v0-version-final-next";
 // E2B kills sandboxes after 5 minutes by default; keep previews alive for 30.
@@ -145,4 +145,39 @@ export const getOrCreateChatSandbox = async (chatId) => {
   }
 
   return { sandbox, rebuilt: true };
+};
+
+/**
+ * Saves `fragment` (an earlier version) as the chat's new latest version, in a fresh
+ * sandbox built from its files so nothing from later versions is left behind. The chat's
+ * previous sandbox is killed. Returns the new assistant message with its fragment.
+ */
+export const restoreFragment = async (chatId, fragment, previousSandboxId) => {
+  // Template versions are served by this app; the sandbox is built on the next prompt.
+  const sandbox = isHostedPreview(fragment) ? null : await createSandboxFromFiles(fragment.files);
+
+  const message = await db.message.create({
+    data: {
+      chatId,
+      content: `Restored the version **${fragment.title}**.`,
+      role: MessageRole.ASSISTANT,
+      type: MessageType.RESULT,
+      fragments: {
+        create: {
+          title: fragment.title,
+          files: fragment.files,
+          sandboxId: sandbox?.sandboxId ?? null,
+          sandboxUrl: sandbox ? getSandboxUrl(sandbox) : fragment.sandboxUrl,
+        },
+      },
+    },
+    include: { fragments: true },
+  });
+
+  await db.chat.update({ where: { id: chatId }, data: { sandboxId: sandbox?.sandboxId ?? null } });
+
+  // The previous sandbox holds the newer code and nothing points at it any more.
+  if (previousSandboxId) await Sandbox.kill(previousSandboxId).catch(() => {});
+
+  return message;
 };

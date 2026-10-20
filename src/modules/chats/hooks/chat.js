@@ -8,6 +8,7 @@ import {
   getChats,
   moveChat,
   renameChat,
+  restoreVersion,
   wakeChatSandbox,
 } from "../actions";
 
@@ -50,6 +51,19 @@ export const useRenameChat = () => useChatMutation(renameChat);
 export const useMoveChat = () => useChatMutation(moveChat);
 /** mutateAsync([chatId]) */
 export const useDeleteChat = () => useChatMutation(deleteChat);
+
+/** mutate(fragmentId): makes an earlier version of the chat the latest one again. */
+export const useRestoreVersion = (chatId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (fragmentId) => unwrap(await restoreVersion(chatId, fragmentId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["sandbox", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+    },
+  });
+};
 
 // Keeps the chat's sandbox alive while the page is open (TanStack pauses the interval in
 // background tabs) and rebuilds it when it has expired; on a rebuild the messages are
