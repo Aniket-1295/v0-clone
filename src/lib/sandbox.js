@@ -1,0 +1,148 @@
+import Sandbox, { NotFoundError } from "@e2b/code-interpreter";
+import db from "@/lib/db";
+import { MessageType } from "@prisma/client";
+
+export const SANDBOX_TEMPLATE = "v0-version-final-next";
+// E2B kills sandboxes after 5 minutes by default; keep previews alive for 30.
+export const SANDBOX_TIMEOUT_MS = 30 * 60 * 1000;
+
+const APP_ROOT = "/home/user";
+
+// Runs inside the sandbox and prints the project tree as JSON { relativePath: content }.
+// Dot entries (.next, .git, shell profile, caches), node_modules, lockfiles and binary
+// or very large files are left out; the template provides those on rebuild.
+const SNAPSHOT_SCRIPT = `
+const fs = require("fs");
+const path = require("path");
+const ROOT = ${JSON.stringify(APP_ROOT)};
+const SKIP_DIRS = new Set(["node_modules"]);
+// Stale copy of the app that the template build failed to remove; not part of the project.
+const SKIP_ROOT_DIRS = new Set(["nextjs-app"]);
+const SKIP_FILES = new Set(["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock", "bun.lockb"]);
+const MAX_BYTES = 200 * 1024;
+const out = {};
+const walk = (dir) => {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith(".")) continue;
+    if (dir === ROOT && SKIP_ROOT_DIRS.has(entry.name)) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRS.has(entry.name)) walk(full);
+      continue;
+    }
+    if (!entry.isFile() || SKIP_FILES.has(entry.name)) continue;
+    const buf = fs.readFileSync(full);
+    if (buf.length > MAX_BYTES || buf.includes(0)) continue;
+    out[path.relative(ROOT, full)] = buf.toString("utf8");
+  }
+};
+walk(ROOT);
+process.stdout.write(JSON.stringify(out));
+`;
+
+export const getSandboxUrl = (sandbox) => `https://${sandbox.getHost(3000)}`;
+
+/** Connects to a running or paused sandbox and extends its timeout; null when it is gone. */
+export const connectSandbox = async (sandboxId) => {
+  try {
+    const sandbox = await Sandbox.connect(sandboxId, { timeoutMs: SANDBOX_TIMEOUT_MS });
+    await sandbox.setTimeout(SANDBOX_TIMEOUT_MS);
+    return sandbox;
+  } catch (error) {
+    if (error instanceof NotFoundError) return null;
+    throw error;
+  }
+};
+
+/** Full project file tree of a sandbox, keyed by path relative to the app root. */
+export const snapshotFiles = async (sandbox) => {
+  // Piped through stdin: re-writing a script file in /tmp fails with "permission denied".
+  const result = await sandbox.commands.run(
+    `node - <<'V0_SNAPSHOT_EOF'\n${SNAPSHOT_SCRIPT}\nV0_SNAPSHOT_EOF`,
+    { timeoutMs: 60_000 }
+  );
+  return JSON.parse(result.stdout);
+};
+
+const toAbsolutePath = (filePath) =>
+  filePath.startsWith("/") ? filePath : `${APP_ROOT}/${filePath}`;
+
+/** Creates a fresh sandbox from the template and writes `files` (a Fragment.files object) into it. */
+export const createSandboxFromFiles = async (files) => {
+  const sandbox = await Sandbox.create(SANDBOX_TEMPLATE, { timeoutMs: SANDBOX_TIMEOUT_MS });
+  const entries = Object.entries(files || {}).filter(
+    ([, content]) => typeof content === "string"
+  );
+
+  if (entries.length === 0) return sandbox;
+
+  const packageJsonPath = `${APP_ROOT}/package.json`;
+  const templatePackageJson = await sandbox.files.read(packageJsonPath);
+
+  await sandbox.files.write(
+    entries.map(([filePath, content]) => ({ path: toAbsolutePath(filePath), data: content }))
+  );
+
+  // The agent may have installed packages; package.json then differs from the template's.
+  const restoredPackageJson = entries.find(
+    ([filePath]) => toAbsolutePath(filePath) === packageJsonPath
+  )?.[1];
+
+  if (restoredPackageJson && restoredPackageJson !== templatePackageJson) {
+    await sandbox.commands.run("npm install --no-audit --no-fund", {
+      cwd: APP_ROOT,
+      timeoutMs: 5 * 60 * 1000,
+    });
+  }
+
+  // Warm up the dev server so the first preview load does not wait for compilation.
+  await sandbox.commands
+    .run("curl -s -o /dev/null --max-time 60 http://localhost:3000", { timeoutMs: 70_000 })
+    .catch(() => {});
+
+  return sandbox;
+};
+
+/** The chat's most recent generated version. */
+export const getLatestFragment = (chatId) =>
+  db.fragment.findFirst({
+    where: { message: { chatId, type: MessageType.RESULT } },
+    orderBy: { createdAt: "desc" },
+  });
+
+/** Template chats preview our hosted template page and need no sandbox until a follow-up. */
+export const isHostedPreview = (fragment) => !!fragment?.sandboxUrl?.includes("/templates-preview/");
+
+/**
+ * Returns the chat's sandbox, recreating it from the latest fragment when it has expired.
+ * On a rebuild the chat and the latest fragment are pointed at the new sandbox so the
+ * preview iframe works again.
+ */
+export const getOrCreateChatSandbox = async (chatId) => {
+  const chat = await db.chat.findUnique({
+    where: { id: chatId },
+    select: { sandboxId: true },
+  });
+
+  if (chat?.sandboxId) {
+    const sandbox = await connectSandbox(chat.sandboxId);
+    if (sandbox) return { sandbox, rebuilt: false };
+  }
+
+  const fragment = await getLatestFragment(chatId);
+  const sandbox = await createSandboxFromFiles(fragment?.files);
+
+  await db.chat.update({
+    where: { id: chatId },
+    data: { sandboxId: sandbox.sandboxId },
+  });
+
+  if (fragment) {
+    await db.fragment.update({
+      where: { id: fragment.id },
+      data: { sandboxId: sandbox.sandboxId, sandboxUrl: getSandboxUrl(sandbox) },
+    });
+  }
+
+  return { sandbox, rebuilt: true };
+};

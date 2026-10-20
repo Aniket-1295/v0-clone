@@ -9,15 +9,20 @@ import {
 import Sandbox from "@e2b/code-interpreter";
 import z from "zod";
 import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
-import { lastAssistantTextMessageContent } from "./utils";
+import { buildFollowUpContext, lastAssistantTextMessageContent } from "./utils";
 
 import  db  from "@/lib/db";
 import { refundCredits } from "@/lib/usage";
 
+import {
+  getLatestFragment,
+  getOrCreateChatSandbox,
+  getSandboxUrl,
+  snapshotFiles,
+} from "@/lib/sandbox";
+
 import { MessageRole, MessageType } from "@prisma/client";
 
-// E2B kills sandboxes after 5 minutes by default; keep previews alive for 30.
-const SANDBOX_TIMEOUT_MS = 30 * 60 * 1000;
 // Only the most recent messages are replayed to the agent as context.
 const MAX_HISTORY_MESSAGES = 20;
 
@@ -53,12 +58,22 @@ export const codeAgentFunction = inngest.createFunction(
   async ({ event, step }) => {
     const chatId = event.data.chatId ?? event.data.projectId;
 
-    // Step-1
+    // Step-1: reuse the chat's sandbox so follow-ups build on the existing code;
+    // recreate it from the latest version (or the template's code) if it has expired.
     const sandboxId = await step.run("get-sandbox-id", async () => {
-      const sandbox = await Sandbox.create("v0-version-final-next", {
-        timeoutMs: SANDBOX_TIMEOUT_MS,
-      });
+      const { sandbox } = await getOrCreateChatSandbox(chatId);
       return sandbox.sandboxId;
+    });
+
+    // Follow-ups: tell the agent what code is already there so it edits the existing
+    // app. Sent as a user message: appended to the system prompt, the context made
+    // Gemini return malformed tool calls.
+    const followUpContext = await step.run("get-follow-up-context", async () => {
+      const fragment = await getLatestFragment(chatId);
+      if (!fragment) return "";
+
+      const sandbox = await Sandbox.connect(sandboxId);
+      return buildFollowUpContext(await snapshotFiles(sandbox));
     });
 
     const previousMessages = await step.run(
@@ -82,6 +97,15 @@ export const codeAgentFunction = inngest.createFunction(
             type:"text",
             role:message.role === "ASSISTANT" ? "assistant" : "user",
             content:message.content
+          })
+        }
+
+        // The current prompt is the last stored message; put the code context just before it.
+        if(followUpContext){
+          formattedMessages.splice(Math.max(formattedMessages.length - 1, 0), 0, {
+            type:"text",
+            role:"user",
+            content:followUpContext
           })
         }
 
@@ -300,23 +324,35 @@ export const codeAgentFunction = inngest.createFunction(
 
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await Sandbox.connect(sandboxId);
-      const host = sandbox.getHost(3000);
-
-      return `https://${host}`;
+      return getSandboxUrl(sandbox);
     });
+
+    // The run finished without a usable result: give the credit back, like onFailure does.
+    if (isError && event.data.userId) {
+      await step.run("refund-credit-on-error", async () => {
+        return await refundCredits(event.data.userId);
+      });
+    }
 
     await step.run("save-result" , async()=>{
       if(isError){
         return await db.message.create({
           data:{
             chatId,
-            content:"Something went wrong. Please try again",
+            content:event.data.userId
+              ? "Something went wrong. Please try again. Your credit has been refunded."
+              : "Something went wrong. Please try again",
             role:MessageRole.ASSISTANT,
             type:MessageType.ERROR
           }
         })
       }
 
+
+      // Store the whole app tree, not just what the agent wrote this run,
+      // so any version can rebuild the app in a fresh sandbox.
+      const sandbox = await Sandbox.connect(sandboxId);
+      const files = await snapshotFiles(sandbox);
 
       return await db.message.create({
         data:{
@@ -329,7 +365,7 @@ export const codeAgentFunction = inngest.createFunction(
               sandboxUrl:sandboxUrl,
               sandboxId:sandboxId,
               title:generateFragmentTitle(),
-              files:result.state.data.files
+              files
             }
           }
         }
