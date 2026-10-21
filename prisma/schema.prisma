@@ -52,6 +52,15 @@ model Chat {
   project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // One persistent E2B sandbox per chat; recreated from the latest version when it expires.
   sandboxId String?
+  // Publish: the chat's app deployed to its own Vercel project at a permanent URL.
+  vercelProjectName   String?
+  publishDeploymentId String?
+  publishStatus       String? // building | ready | error
+  publishError        String?
+  publishedUrl        String?
+  publishedAt         DateTime?
+  // The version (Fragment) the current or last deployment was made from.
+  publishedFragmentId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

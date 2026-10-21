@@ -28,6 +28,7 @@ import { Hint } from "@/components/ui/hint";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useGetChat, useKeepSandboxAlive } from "@/modules/chats/hooks/chat";
+import PublishButton from "./publish-button";
 
 const EmptyPane = ({ icon: Icon, text }) => (
   <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -212,6 +213,7 @@ const ProjectView = ({ chatId, initialTab = "preview" }) => {
             ))}
           </div>
         )}
+        <PublishButton chatId={chatId} />
         <Button asChild size="sm" variant="outline" className="h-8">
           <Link href={"/pricing"}>
             <CrownIcon className="size-3.5" />
