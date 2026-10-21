@@ -11,6 +11,7 @@ import {
   publishChat,
   renameChat,
   restoreVersion,
+  saveCodeEdits,
   shareChat,
   unshareChat,
   wakeChatSandbox,
@@ -64,6 +65,18 @@ export const useRestoreVersion = (chatId) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
       queryClient.invalidateQueries({ queryKey: ["sandbox", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+    },
+  });
+};
+
+/** mutateAsync({ fragmentId, edits }): saves hand edits of the latest version as a new version. */
+export const useSaveCodeEdits = (chatId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ fragmentId, edits }) => unwrap(await saveCodeEdits(chatId, fragmentId, edits)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
       queryClient.invalidateQueries({ queryKey: ["chats"] });
     },
   });

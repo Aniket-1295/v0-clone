@@ -227,3 +227,63 @@ export const restoreFragment = async (chatId, fragment, previousSandboxId) => {
 
   return message;
 };
+
+// Limits for code edited by hand in the Code tab.
+const MAX_EDIT_FILES = 50;
+const MAX_EDIT_FILE_BYTES = 200 * 1024;
+const MAX_EDIT_TOTAL_BYTES = 1024 * 1024;
+
+/**
+ * Checks hand edits ({ path: content }) against the version they change: only files that
+ * already exist, relative paths inside the app, and size limits. Returns an error message
+ * for the user, or null when the edits are fine.
+ */
+export const validateCodeEdits = (edits, files) => {
+  const entries = Object.entries(edits ?? {});
+  if (entries.length === 0) return "There are no changes to save.";
+  if (entries.length > MAX_EDIT_FILES) return `Save at most ${MAX_EDIT_FILES} files at once.`;
+
+  let total = 0;
+  for (const [path, content] of entries) {
+    if (typeof content !== "string") return `Invalid content for ${path}.`;
+    if (path.startsWith("/") || path.split("/").includes("..")) return `Invalid file path: ${path}.`;
+    if (typeof files?.[path] !== "string") return `${path} is not part of this version.`;
+    const bytes = Buffer.byteLength(content);
+    if (bytes > MAX_EDIT_FILE_BYTES) return `${path} is too large to save here.`;
+    total += bytes;
+  }
+  return total > MAX_EDIT_TOTAL_BYTES ? "The changes are too large to save at once." : null;
+};
+
+/**
+ * Saves hand edits of the chat's latest version (`latest`, a Fragment): writes them into
+ * the chat's sandbox so the preview updates, and records them as a new version.
+ * Returns the new assistant message with its fragment.
+ */
+export const saveCodeEditsAsVersion = async (chatId, latest, edits) => {
+  const { sandbox } = await getOrCreateChatSandbox(chatId);
+  await sandbox.files.write(
+    Object.entries(edits).map(([path, data]) => ({ path: `${APP_ROOT}/${path}`, data }))
+  );
+
+  const names = Object.keys(edits).map((path) => `\`${path}\``);
+  const listed = names.length > 3 ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more` : names.join(", ");
+
+  return db.message.create({
+    data: {
+      chatId,
+      content: `Edited ${listed} by hand.`,
+      role: MessageRole.ASSISTANT,
+      type: MessageType.RESULT,
+      fragments: {
+        create: {
+          title: latest.title,
+          files: { ...latest.files, ...edits },
+          sandboxId: sandbox.sandboxId,
+          sandboxUrl: getSandboxUrl(sandbox),
+        },
+      },
+    },
+    include: { fragments: true },
+  });
+};
