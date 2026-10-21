@@ -19,6 +19,9 @@ model User {
   name String?
   image String?
   clerkId String @unique
+  // GitHub connection for "Push to GitHub" (OAuth). The token is encrypted with ENV_VARS_SECRET.
+  githubLogin          String?
+  githubTokenEncrypted String?
 
     projects Project[]
     chats    Chat[]
@@ -63,6 +66,11 @@ model Chat {
   publishedFragmentId String?
   // Share: an unguessable id for the public read-only page /share/[shareId]; null = private.
   shareId String? @unique
+  // Push to GitHub: the repository ("owner/name") and the version last pushed to it.
+  githubRepo              String?
+  githubBranch            String?
+  githubPushedFragmentId  String?
+  githubPushedAt          DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

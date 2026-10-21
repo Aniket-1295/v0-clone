@@ -5,13 +5,16 @@ import {
   createChatFromTemplate,
   deleteChat,
   deleteEnvVar,
+  disconnectGithub,
   enableDesignMode,
   getChat,
   getChats,
+  getGithubStatus,
   getPublishStatus,
   listEnvVars,
   moveChat,
   publishChat,
+  pushToGithub,
   renameChat,
   restoreVersion,
   saveCodeEdits,
@@ -109,6 +112,32 @@ export const useDeleteEnvVar = (chatId) => useEnvMutation(chatId, deleteEnvVar);
 /** mutateAsync(): installs the design mode helper in the chat's sandbox. */
 export const useEnableDesignMode = (chatId) =>
   useMutation({ mutationFn: async () => unwrap(await enableDesignMode(chatId)) });
+
+// GitHub connection and this chat's repository.
+export const useGithubStatus = (chatId) =>
+  useQuery({
+    queryKey: ["github", chatId],
+    queryFn: async () => unwrap(await getGithubStatus(chatId)),
+    enabled: !!chatId,
+  });
+
+/** mutateAsync({ repoName, isPrivate }) */
+export const usePushToGithub = (chatId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (options) => unwrap(await pushToGithub(chatId, options)),
+    onSuccess: (data) => queryClient.setQueryData(["github", chatId], data),
+    onError: () => queryClient.invalidateQueries({ queryKey: ["github", chatId] }),
+  });
+};
+
+export const useDisconnectGithub = (chatId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => unwrap(await disconnectGithub()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["github"] }),
+  });
+};
 
 // Share link on/off; the chat query (useGetChat) carries the current shareId.
 const useShareMutation = (chatId, action) => {
