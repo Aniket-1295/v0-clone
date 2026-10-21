@@ -14,6 +14,7 @@ import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
 import { encryptSecret, decryptSecret, isSecretsConfigured } from "@/lib/secrets";
+import { createRepository, isGithubConfigured, pushFiles, repoNameFor, revokeToken } from "@/lib/github";
 import { ENV_KEY_PATTERN, MAX_ENV_VALUE_BYTES, MAX_ENV_VARS, getChatEnv, maskValue } from "@/lib/env-vars";
 import { createDeployment, getDeploymentState, isPublishConfigured, projectNameFor, syncProjectEnv } from "@/lib/vercel";
 import {
@@ -508,4 +509,107 @@ export const enableDesignMode = async (chatId) => {
     console.error("enableDesignMode failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Could not start design mode. Please try again.");
   }
+};
+
+// Read separately: getCurrentUser is callable from the browser and must not carry the token.
+const githubAccount = (userId) =>
+  db.user.findUnique({ where: { id: userId }, select: { githubLogin: true, githubTokenEncrypted: true } });
+
+const githubView = async (account, chat) => {
+  const latest = await getLatestFragment(chat.id);
+  return {
+    configured: isGithubConfigured(),
+    connected: !!account.githubTokenEncrypted,
+    login: account.githubLogin ?? null,
+    repo: chat.githubRepo ?? null,
+    repoUrl: chat.githubRepo ? `https://github.com/${chat.githubRepo}` : null,
+    pushedAt: chat.githubPushedAt ?? null,
+    upToDate: !!latest && chat.githubPushedFragmentId === latest.id,
+    canPush: !!latest && !isHostedPreview(latest),
+    suggestedName: repoNameFor(chat.title),
+  };
+};
+
+const GITHUB_CHAT_SELECT = { id: true, title: true, githubRepo: true, githubBranch: true, githubPushedFragmentId: true, githubPushedAt: true };
+
+/** Whether the user has connected GitHub and where this chat's app was pushed. */
+export const getGithubStatus = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: GITHUB_CHAT_SELECT });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  return ok(await githubView(await githubAccount(user.id), chat));
+};
+
+/**
+ * Pushes the chat's latest version to GitHub as one commit. The first push creates the
+ * repository (`repoName`, private by default) in the user's own account.
+ */
+export const pushToGithub = async (chatId, { repoName, isPrivate = true } = {}) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  let chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: GITHUB_CHAT_SELECT });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  const account = await githubAccount(user.id);
+  if (!account.githubTokenEncrypted) return fail(ActionErrorCode.INTERNAL, "Connect your GitHub account first.");
+
+  const latest = await getLatestFragment(chatId);
+  if (!latest || isHostedPreview(latest)) {
+    return fail(ActionErrorCode.INTERNAL, "Send a prompt first: there is no generated app to push yet.");
+  }
+
+  const token = decryptSecret(account.githubTokenEncrypted);
+  try {
+    if (!chat.githubRepo) {
+      const name = repoNameFor(repoName || chat.title);
+      const created = await createRepository(token, { name, isPrivate, description: `${chat.title} (made with v0 clone)` });
+      chat = await db.chat.update({
+        where: { id: chatId },
+        data: { githubRepo: created.repo, githubBranch: created.branch },
+        select: GITHUB_CHAT_SELECT,
+      });
+    }
+
+    await pushFiles(token, {
+      repo: chat.githubRepo,
+      branch: chat.githubBranch || "main",
+      files: latest.files,
+      message: `v0: ${latest.title}`,
+    });
+    chat = await db.chat.update({
+      where: { id: chatId },
+      data: { githubPushedFragmentId: latest.id, githubPushedAt: new Date() },
+      select: GITHUB_CHAT_SELECT,
+    });
+    return ok(await githubView(account, chat));
+  } catch (error) {
+    console.error("pushToGithub failed:", error.message);
+    if (error.status === 401) {
+      await db.user.update({ where: { id: user.id }, data: { githubLogin: null, githubTokenEncrypted: null } });
+      return fail(ActionErrorCode.INTERNAL, "Your GitHub connection has expired. Connect GitHub again.");
+    }
+    if (error.status === 404 && chat.githubRepo) {
+      // The repository was deleted or renamed on GitHub; the next push creates a new one.
+      await db.chat.update({ where: { id: chatId }, data: { githubRepo: null, githubBranch: null, githubPushedFragmentId: null } });
+      return fail(ActionErrorCode.INTERNAL, `${chat.githubRepo} was not found on GitHub. Push again to create a new repository.`);
+    }
+    if (error.status === 422) return fail(ActionErrorCode.INTERNAL, `GitHub refused: ${error.message}`);
+    return fail(ActionErrorCode.INTERNAL, "Could not push to GitHub. Please try again.");
+  }
+};
+
+/** Disconnects GitHub for the user and revokes the app's access. Pushed repositories stay. */
+export const disconnectGithub = async () => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  const account = await githubAccount(user.id);
+  if (account?.githubTokenEncrypted) {
+    try {
+      await revokeToken(decryptSecret(account.githubTokenEncrypted));
+    } catch {
+      // Unreadable or already revoked: forgetting it is enough.
+    }
+  }
+  await db.user.update({ where: { id: user.id }, data: { githubLogin: null, githubTokenEncrypted: null } });
+  return ok({ connected: false });
 };

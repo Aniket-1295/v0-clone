@@ -39,6 +39,7 @@ import { showActionError } from "@/lib/show-action-error";
 import PublishButton from "./publish-button";
 import ShareButton from "./share-button";
 import EnvVarsButton from "./env-vars-button";
+import GithubButton from "./github-button";
 
 const EmptyPane = ({ icon: Icon, text }) => (
   <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -346,6 +347,7 @@ const ProjectView = ({ chatId, initialTab = "preview" }) => {
         )}
         <EnvVarsButton chatId={chatId} />
         <ShareButton chatId={chatId} />
+        <GithubButton chatId={chatId} />
         <PublishButton chatId={chatId} />
         <Button asChild size="sm" variant="outline" className="h-8">
           <Link href={"/pricing"}>
