@@ -13,7 +13,9 @@ import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
-import { createDeployment, getDeploymentState, isPublishConfigured, projectNameFor } from "@/lib/vercel";
+import { encryptSecret, decryptSecret, isSecretsConfigured } from "@/lib/secrets";
+import { ENV_KEY_PATTERN, MAX_ENV_VALUE_BYTES, MAX_ENV_VARS, getChatEnv, maskValue } from "@/lib/env-vars";
+import { createDeployment, getDeploymentState, isPublishConfigured, projectNameFor, syncProjectEnv } from "@/lib/vercel";
 import {
   connectSandbox,
   getLatestFragment,
@@ -21,6 +23,7 @@ import {
   isHostedPreview,
   restoreFragment,
   saveCodeEditsAsVersion,
+  syncChatEnvToSandbox,
   validateCodeEdits,
 } from "@/lib/sandbox";
 
@@ -314,6 +317,8 @@ export const publishChat = async (chatId) => {
 
   try {
     const projectName = chat.vercelProjectName ?? projectNameFor(chat);
+    // The chat's environment variables go to the project before it builds.
+    await syncProjectEnv(projectName, await getChatEnv(chatId));
     const { id } = await createDeployment({ projectName, files: latest.files });
     const updated = await db.chat.update({
       where: { id: chatId },
@@ -426,4 +431,66 @@ export const saveCodeEdits = async (chatId, fragmentId, edits) => {
     console.error("saveCodeEdits failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Could not save your changes. Please try again.");
   }
+};
+
+const ownChat = (chatId, userId) => db.chat.findFirst({ where: { id: chatId, userId }, select: { id: true } });
+
+/**
+ * The chat's environment variables with masked values. Values are never sent back to the
+ * browser once saved; they can only be replaced or deleted.
+ */
+export const listEnvVars = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  if (!(await ownChat(chatId, user.id))) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  const rows = await db.chatEnvVar.findMany({ where: { chatId }, orderBy: { key: "asc" } });
+  const vars = rows.map((row) => {
+    let masked = "••••••••";
+    try {
+      masked = maskValue(decryptSecret(row.valueEncrypted));
+    } catch {
+      // Unreadable with the current ENV_VARS_SECRET; the user can replace it.
+    }
+    return { key: row.key, masked, updatedAt: row.updatedAt };
+  });
+  return ok({ configured: isSecretsConfigured(), vars });
+};
+
+/** Adds or replaces one variable, then updates the running sandbox. */
+export const setEnvVar = async (chatId, key, value) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  if (!(await ownChat(chatId, user.id))) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  if (!isSecretsConfigured()) return fail(ActionErrorCode.INTERNAL, "Environment variables are not set up yet (ENV_VARS_SECRET).");
+
+  const name = String(key ?? "").trim();
+  if (!ENV_KEY_PATTERN.test(name)) {
+    return fail(ActionErrorCode.INTERNAL, "Use capital letters, digits and underscores for the name, e.g. OPENAI_API_KEY.");
+  }
+  if (typeof value !== "string" || value.length === 0) return fail(ActionErrorCode.INTERNAL, "Enter a value.");
+  if (Buffer.byteLength(value) > MAX_ENV_VALUE_BYTES) return fail(ActionErrorCode.INTERNAL, "That value is too long (max 4 KB).");
+
+  const existing = await db.chatEnvVar.findUnique({ where: { chatId_key: { chatId, key: name } }, select: { id: true } });
+  if (!existing && (await db.chatEnvVar.count({ where: { chatId } })) >= MAX_ENV_VARS) {
+    return fail(ActionErrorCode.INTERNAL, `A chat can have at most ${MAX_ENV_VARS} variables.`);
+  }
+
+  await db.chatEnvVar.upsert({
+    where: { chatId_key: { chatId, key: name } },
+    create: { chatId, key: name, valueEncrypted: encryptSecret(value) },
+    update: { valueEncrypted: encryptSecret(value) },
+  });
+  await syncChatEnvToSandbox(chatId);
+  return ok({ key: name });
+};
+
+export const deleteEnvVar = async (chatId, key) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  if (!(await ownChat(chatId, user.id))) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  await db.chatEnvVar.deleteMany({ where: { chatId, key } });
+  await syncChatEnvToSandbox(chatId);
+  return ok({ key });
 };

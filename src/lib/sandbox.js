@@ -1,6 +1,7 @@
 import Sandbox, { NotFoundError } from "@e2b/code-interpreter";
 import db from "@/lib/db";
 import { MessageRole, MessageType } from "@prisma/client";
+import { getChatEnv, SANDBOX_ENV_PATH, toEnvFile } from "@/lib/env-vars";
 
 // v0-version-final-next (1 GB) plus npm settings, with 2 GB of memory: next dev uses ~700 MB
 // once warm, which left npm installs too little room. See sandbox-templates/next-js.
@@ -114,11 +115,14 @@ const toAbsolutePath = (filePath) =>
   filePath.startsWith("/") ? filePath : `${APP_ROOT}/${filePath}`;
 
 /** Creates a fresh sandbox from the template and writes `files` (a Fragment.files object) into it. */
-export const createSandboxFromFiles = async (files) => {
+export const createSandboxFromFiles = async (files, { env = {} } = {}) => {
   const sandbox = await Sandbox.create(SANDBOX_TEMPLATE, { timeoutMs: SANDBOX_TIMEOUT_MS });
   const entries = Object.entries(files || {}).filter(
     ([, content]) => typeof content === "string"
   );
+
+  // The chat's environment variables, before the dev server compiles the app.
+  if (Object.keys(env).length > 0) await sandbox.files.write(SANDBOX_ENV_PATH, toEnvFile(env));
 
   if (entries.length === 0) return sandbox;
 
@@ -176,7 +180,7 @@ export const getOrCreateChatSandbox = async (chatId) => {
   }
 
   const fragment = await getLatestFragment(chatId);
-  const sandbox = await createSandboxFromFiles(fragment?.files);
+  const sandbox = await createSandboxFromFiles(fragment?.files, { env: await getChatEnv(chatId) });
 
   await db.chat.update({
     where: { id: chatId },
@@ -200,7 +204,9 @@ export const getOrCreateChatSandbox = async (chatId) => {
  */
 export const restoreFragment = async (chatId, fragment, previousSandboxId) => {
   // Template versions are served by this app; the sandbox is built on the next prompt.
-  const sandbox = isHostedPreview(fragment) ? null : await createSandboxFromFiles(fragment.files);
+  const sandbox = isHostedPreview(fragment)
+    ? null
+    : await createSandboxFromFiles(fragment.files, { env: await getChatEnv(chatId) });
 
   const message = await db.message.create({
     data: {
@@ -286,4 +292,19 @@ export const saveCodeEditsAsVersion = async (chatId, latest, edits) => {
     },
     include: { fragments: true },
   });
+};
+
+/**
+ * Rewrites .env.local in the chat's running sandbox after its environment variables
+ * change (next dev reloads it). A sandbox that is gone gets the variables when rebuilt.
+ */
+export const syncChatEnvToSandbox = async (chatId) => {
+  const chat = await db.chat.findUnique({ where: { id: chatId }, select: { sandboxId: true } });
+  if (!chat?.sandboxId) return;
+  try {
+    const sandbox = await Sandbox.connect(chat.sandboxId);
+    await sandbox.files.write(SANDBOX_ENV_PATH, toEnvFile(await getChatEnv(chatId)));
+  } catch (error) {
+    if (!(error instanceof NotFoundError)) console.error(`Could not update env of sandbox ${chat.sandboxId}:`, error.message);
+  }
 };
