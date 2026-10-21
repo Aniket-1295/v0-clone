@@ -61,6 +61,8 @@ model Chat {
   publishedAt         DateTime?
   // The version (Fragment) the current or last deployment was made from.
   publishedFragmentId String?
+  // Share: an unguessable id for the public read-only page /share/[shareId]; null = private.
+  shareId String? @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { MessageRole, MessageType } from "@prisma/client";
@@ -112,7 +113,7 @@ export const getChat = async (chatId) => {
 
   const chat = await db.chat.findFirst({
     where: { id: chatId, userId: user.id },
-    select: CHAT_LIST_SELECT,
+    select: { ...CHAT_LIST_SELECT, shareId: true },
   });
 
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
@@ -358,4 +359,33 @@ export const getPublishStatus = async (chatId) => {
   }
 
   return ok(publishView(chat, latest));
+};
+
+/**
+ * Makes the chat viewable read-only at /share/[shareId] by anyone with the link. Returns
+ * the existing link if it is already shared. The id is random, so links cannot be guessed.
+ */
+export const shareChat = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { shareId: true } });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  if (chat.shareId) return ok({ shareId: chat.shareId });
+
+  const updated = await db.chat.update({
+    where: { id: chatId },
+    data: { shareId: randomBytes(12).toString("base64url") },
+    select: { shareId: true },
+  });
+  return ok(updated);
+};
+
+/** Turns the share link off; the old link stops working. */
+export const unshareChat = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const { count } = await db.chat.updateMany({ where: { id: chatId, userId: user.id }, data: { shareId: null } });
+  return count ? ok({ shareId: null }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 };

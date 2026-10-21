@@ -48,19 +48,23 @@ const RestoreButton = ({ onRestore, isRestoring, disabled }) => (
   </Hint>
 );
 
-const UserMessage = ({ content, attachments = [] }) => {
+// Where an attached image is loaded from: the owner's route by default; shared pages pass
+// their own, scoped to the share link.
+const ownerAttachmentSrc = (id) => `/api/attachments/${id}`;
+
+const UserMessage = ({ content, attachments = [], attachmentSrc = ownerAttachmentSrc }) => {
   return (
     <div className="flex flex-col items-end gap-1.5 pl-10">
       {attachments.map((attachment) => (
         <a
           key={attachment.id}
-          href={`/api/attachments/${attachment.id}`}
+          href={attachmentSrc(attachment.id)}
           target="_blank"
           rel="noreferrer"
           className="block overflow-hidden rounded-xl border bg-muted"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/attachments/${attachment.id}`} alt="Attached image" className="max-h-48 max-w-64 object-contain" />
+          <img src={attachmentSrc(attachment.id)} alt="Attached image" className="max-h-48 max-w-64 object-contain" />
         </a>
       ))}
       <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-xl bg-muted px-3 py-2 text-sm">
@@ -138,6 +142,7 @@ const MessageCard = ({
   onFragmentClick,
   type,
   attachments,
+  attachmentSrc,
   ...restoreProps
 }) => {
   if (role === MessageRole.ASSISTANT) {
@@ -154,7 +159,7 @@ const MessageCard = ({
     );
   }
 
-  return <UserMessage content={content} attachments={attachments} />;
+  return <UserMessage content={content} attachments={attachments} attachmentSrc={attachmentSrc} />;
 };
 
 export default MessageCard;

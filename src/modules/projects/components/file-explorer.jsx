@@ -91,9 +91,10 @@ function getLanguageFromExtension(filename) {
 
 export const FileExplorer = ({ files }) => {
   const [copied, setCopied] = useState(false);
+  // Versions hold the whole app tree; open the main page rather than README.md.
   const [selectedFile, setSelectedFile] = useState(() => {
     const fileKeys = Object.keys(files);
-    return fileKeys.length > 0 ? fileKeys[0] : null;
+    return files["app/page.tsx"] ? "app/page.tsx" : fileKeys.length > 0 ? fileKeys[0] : null;
   });
 
   const treeData = useMemo(() => {
