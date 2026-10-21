@@ -20,6 +20,8 @@ import {
   getOrCreateChatSandbox,
   isHostedPreview,
   restoreFragment,
+  saveCodeEditsAsVersion,
+  validateCodeEdits,
 } from "@/lib/sandbox";
 
 const UNAUTHORIZED = () => fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
@@ -388,4 +390,40 @@ export const unshareChat = async (chatId) => {
 
   const { count } = await db.chat.updateMany({ where: { id: chatId, userId: user.id }, data: { shareId: null } });
   return count ? ok({ shareId: null }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+};
+
+/**
+ * Saves files edited by hand in the Code tab as a new version of the chat (the latest
+ * version only; older ones must be restored first). The edits go into the chat's sandbox
+ * so the preview updates. Costs no credit. Returns the new message.
+ */
+export const saveCodeEdits = async (chatId, fragmentId, edits) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { id: true } });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  const [latest, lastMessage] = await Promise.all([
+    getLatestFragment(chatId),
+    db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { role: true } }),
+  ]);
+  if (lastMessage?.role === MessageRole.USER) {
+    return fail(ActionErrorCode.INTERNAL, "Wait for the current generation to finish, then save.");
+  }
+  if (!latest || latest.id !== fragmentId) {
+    return fail(ActionErrorCode.INTERNAL, "Only the latest version can be edited. Restore this version first.");
+  }
+
+  const problem = validateCodeEdits(edits, latest.files);
+  if (problem) return fail(ActionErrorCode.INTERNAL, problem);
+
+  try {
+    const message = await saveCodeEditsAsVersion(chatId, latest, edits);
+    await db.chat.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
+    return ok(message);
+  } catch (error) {
+    console.error("saveCodeEdits failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not save your changes. Please try again.");
+  }
 };

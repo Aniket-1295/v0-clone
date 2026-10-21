@@ -27,7 +27,12 @@ import { FileExplorer } from "./file-explorer";
 import { Hint } from "@/components/ui/hint";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { useGetChat, useKeepSandboxAlive } from "@/modules/chats/hooks/chat";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { MessageRole } from "@prisma/client";
+import { useGetChat, useKeepSandboxAlive, useSaveCodeEdits } from "@/modules/chats/hooks/chat";
+import { useGetMessages } from "@/modules/messages/hooks/message";
+import { showActionError } from "@/lib/show-action-error";
 import PublishButton from "./publish-button";
 import ShareButton from "./share-button";
 
@@ -60,7 +65,25 @@ const downloadFiles = (files, name) => {
 };
 
 const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
+  const router = useRouter();
   const { data: chat } = useGetChat(chatId);
+  const { data: messages } = useGetMessages(chatId);
+  const saveEdits = useSaveCodeEdits(chatId);
+  // Only the latest version can be edited, and not while the agent is working on it.
+  const latestFragmentId = messages?.findLast((message) => message.fragments)?.fragments.id;
+  const generating = messages?.at(-1)?.role === MessageRole.USER;
+  const isLatest = !!activeFragment && activeFragment.id === latestFragmentId;
+  const readOnlyReason = !isLatest ? "Older version: restore it to edit." : generating ? "Editing is paused while v0 works." : null;
+
+  const onSaveEdits = async (edits) => {
+    try {
+      await saveEdits.mutateAsync({ fragmentId: activeFragment.id, edits });
+      toast.success("Saved as a new version");
+    } catch (error) {
+      showActionError(error, router, "Could not save your changes.");
+      throw error;
+    }
+  };
   const [previewKey, setPreviewKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const sandboxUrl = activeFragment?.sandboxUrl;
@@ -150,7 +173,14 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
 
       <TabsContent value="code" className="min-h-0 flex-1">
         {activeFragment?.files ? (
-          <FileExplorer files={activeFragment.files} />
+          <FileExplorer
+            key={activeFragment.id}
+            files={activeFragment.files}
+            editable={isLatest && !generating}
+            readOnlyReason={readOnlyReason}
+            onSave={onSaveEdits}
+            saving={saveEdits.isPending}
+          />
         ) : (
           <EmptyPane icon={Code} text="Generated code will appear here" />
         )}
