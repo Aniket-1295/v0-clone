@@ -34,7 +34,7 @@ export const CODE_AGENT_TOOLS = Object.entries(TOOL_SCHEMAS).map(([name, { descr
 }));
 
 // `npm install a b --yes` (no other commands chained): the package names it installs.
-const npmInstallPackages = (command) => {
+export const npmInstallPackages = (command) => {
   const match = /^\s*npm\s+(?:install|i|add)\s+([^;&|]+)$/.exec(command);
   if (!match) return null;
   const names = match[1]
@@ -65,7 +65,7 @@ const alreadyInstalled = async (sandbox, command) => {
 
 // Every npm install the agent runs skips audit, fund and progress output: with them, an
 // install next to the dev server can exhaust the sandbox's memory and hang it.
-const withLightNpmFlags = (command) => command.replace(/\bnpm\s+(install|i|add)\b/g, `npm $1 ${LIGHT_NPM_FLAGS}`);
+export const withLightNpmFlags = (command) => command.replace(/\bnpm\s+(install|i|add)\b/g, `npm $1 ${LIGHT_NPM_FLAGS}`);
 
 const reply = (call, output, writtenFiles = {}) => ({
   part: { functionResponse: { ...(call.id ? { id: call.id } : {}), name: call.name, response: output } },
