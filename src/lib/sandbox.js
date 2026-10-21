@@ -2,6 +2,7 @@ import Sandbox, { NotFoundError } from "@e2b/code-interpreter";
 import db from "@/lib/db";
 import { MessageRole, MessageType } from "@prisma/client";
 import { getChatEnv, SANDBOX_ENV_PATH, toEnvFile } from "@/lib/env-vars";
+import { DESIGN_SCRIPT, DESIGN_SCRIPT_FILE } from "@/lib/design-mode-script";
 
 // v0-version-final-next (1 GB) plus npm settings, with 2 GB of memory: next dev uses ~700 MB
 // once warm, which left npm installs too little room. See sandbox-templates/next-js.
@@ -28,13 +29,15 @@ const ROOT = ${JSON.stringify(APP_ROOT)};
 const SKIP_DIRS = new Set(["node_modules"]);
 // Stale copy of the app that the template build failed to remove; not part of the project.
 const SKIP_ROOT_DIRS = new Set(["nextjs-app"]);
+// The design mode helper we add to sandboxes; not part of the user's app.
+const SKIP_ROOT_FILES = new Set(["instrumentation-client.js"]);
 const SKIP_FILES = new Set(["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock", "bun.lockb"]);
 const MAX_BYTES = 200 * 1024;
 const out = {};
 const walk = (dir) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".")) continue;
-    if (dir === ROOT && SKIP_ROOT_DIRS.has(entry.name)) continue;
+    if (dir === ROOT && (SKIP_ROOT_DIRS.has(entry.name) || SKIP_ROOT_FILES.has(entry.name))) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!SKIP_DIRS.has(entry.name)) walk(full);
@@ -307,4 +310,16 @@ export const syncChatEnvToSandbox = async (chatId) => {
   } catch (error) {
     if (!(error instanceof NotFoundError)) console.error(`Could not update env of sandbox ${chat.sandboxId}:`, error.message);
   }
+};
+
+/**
+ * Makes sure the chat's sandbox has the design mode helper (rebuilding the sandbox if it is
+ * gone) and returns the preview URL. Writing it the first time reloads the preview.
+ */
+export const installDesignScript = async (chatId) => {
+  const { sandbox } = await getOrCreateChatSandbox(chatId);
+  const path = `${APP_ROOT}/${DESIGN_SCRIPT_FILE}`;
+  const current = await sandbox.files.read(path).catch(() => null);
+  if (current !== DESIGN_SCRIPT) await sandbox.files.write(path, DESIGN_SCRIPT);
+  return { sandboxUrl: getSandboxUrl(sandbox), installed: current !== DESIGN_SCRIPT };
 };
