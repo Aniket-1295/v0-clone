@@ -2,7 +2,9 @@ import Sandbox, { NotFoundError } from "@e2b/code-interpreter";
 import db from "@/lib/db";
 import { MessageRole, MessageType } from "@prisma/client";
 
-export const SANDBOX_TEMPLATE = "v0-version-final-next";
+// v0-version-final-next (1 GB) plus npm settings, with 2 GB of memory: next dev uses ~700 MB
+// once warm, which left npm installs too little room. See sandbox-templates/next-js.
+export const SANDBOX_TEMPLATE = "v0-next-2gb";
 // E2B kills sandboxes after 5 minutes by default; keep previews alive for 30.
 export const SANDBOX_TIMEOUT_MS = 30 * 60 * 1000;
 // A snapshot takes ~2 s; far longer means the sandbox is overloaded or hung.

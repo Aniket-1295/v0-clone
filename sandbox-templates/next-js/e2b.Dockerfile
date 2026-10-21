@@ -1,8 +1,10 @@
 # You can use most Debian-based base images
 #
-# Rebuild (replaces the template every chat uses; run from this folder):
-#   npx @e2b/cli@2.22.3 template create v0-version-final-next --cmd "/compile_page.sh" --memory-mb 2048 --cpu-count 2
-# The sandbox runs `next dev` (~700 MB once warm); 2048 MB leaves room for npm installs.
+# This Dockerfile built the original 1 GB template `v0-version-final-next`. It no longer
+# builds as-is (Oct 2026): `shadcn@2.6.3 add --all` fails because the registry index lists
+# a component it does not serve. The app uses `v0-next-2gb` (see build-2gb.mjs), built on
+# top of `v0-version-final-next` with the E2B SDK: same files and packages, npm audit/fund/
+# progress turned off, and 2048 MB, since `next dev` uses ~700 MB once warm.
 FROM node:20-slim
 
 # Install curl
