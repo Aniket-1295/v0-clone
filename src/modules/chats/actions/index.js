@@ -210,18 +210,20 @@ export const wakeChatSandbox = async (chatId) => {
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
   try {
-    if (chat.sandboxId && (await connectSandbox(chat.sandboxId))) {
+    const lastMessage = await db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { role: true } });
+    const generating = lastMessage?.role === MessageRole.USER;
+
+    // A hung sandbox is replaced, but not while a generation runs: an npm install can make
+    // a healthy sandbox briefly slow, and the run must keep its sandbox.
+    if (chat.sandboxId && (await connectSandbox(chat.sandboxId, { checkHealth: !generating }))) {
       return ok({ status: "alive" });
     }
 
-    const [fragment, lastMessage] = await Promise.all([
-      getLatestFragment(chatId),
-      db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { role: true } }),
-    ]);
+    const fragment = await getLatestFragment(chatId);
 
     // Nothing to rebuild yet, a generation is running (the agent restores the sandbox
     // itself), or the version is a template served by this app (no sandbox needed).
-    if (!fragment || lastMessage?.role === MessageRole.USER || isHostedPreview(fragment)) {
+    if (!fragment || generating || isHostedPreview(fragment)) {
       return ok({ status: "idle" });
     }
 

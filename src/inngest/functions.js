@@ -14,7 +14,7 @@ import {
   getLatestFragment,
   getOrCreateChatSandbox,
   getSandboxUrl,
-  snapshotFiles,
+  snapshotWithFallback,
 } from "@/lib/sandbox";
 
 import { MessageRole, MessageType } from "@prisma/client";
@@ -145,8 +145,7 @@ export const codeAgentFunction = inngest.createFunction(
       const fragment = await getLatestFragment(chatId);
       if (!fragment) return "";
 
-      const sandbox = await Sandbox.connect(sandboxId);
-      return buildFollowUpContext(await snapshotFiles(sandbox));
+      return buildFollowUpContext(await snapshotWithFallback(sandboxId, chatId));
     });
 
     const history = await step.run("get-previous-messages", async () => {
@@ -308,8 +307,7 @@ export const codeAgentFunction = inngest.createFunction(
 
       // Store the whole app tree, not just what the agent wrote this run,
       // so any version can rebuild the app in a fresh sandbox.
-      const sandbox = await Sandbox.connect(sandboxId);
-      const files = await snapshotFiles(sandbox);
+      const files = await snapshotWithFallback(sandboxId, chatId, writtenFiles);
 
       return await db.message.create({
         data:{

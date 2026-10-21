@@ -56,7 +56,12 @@ export const checkApp = async (sandboxId, routes) => {
   for (const route of routes) {
     const result = await sandbox.commands
       .run(`curl -s --max-time 90 -w '\\n${STATUS_MARKER}%{http_code}' http://localhost:3000${route}`, { timeoutMs: 100_000 })
-      .catch((error) => error.result ?? { stdout: "" });
+      // curl failing still has a result; no result means the sandbox itself did not answer.
+      .catch((error) => error.result ?? null);
+    if (!result) {
+      console.error(`check-app: sandbox ${sandboxId} did not answer; skipping the check.`);
+      return null;
+    }
     const output = result.stdout ?? "";
     const markerAt = output.lastIndexOf(STATUS_MARKER);
     const status = markerAt === -1 ? 0 : Number(output.slice(markerAt + STATUS_MARKER.length));
