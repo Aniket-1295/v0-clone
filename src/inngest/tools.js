@@ -32,6 +32,36 @@ export const CODE_AGENT_TOOLS = Object.entries(TOOL_SCHEMAS).map(([name, { descr
   parametersJsonSchema: toJsonSchema(parameters),
 }));
 
+// `npm install a b --yes` (no other commands chained): the package names it installs.
+const npmInstallPackages = (command) => {
+  const match = /^\s*npm\s+(?:install|i|add)\s+([^;&|]+)$/.exec(command);
+  if (!match) return null;
+  const names = match[1]
+    .split(/\s+/)
+    .filter((arg) => arg && !arg.startsWith("-"))
+    // "react@19", "@scope/pkg@^1" -> package name without the version
+    .map((arg) => arg.replace(/(?!^)@.*$/, ""));
+  return names.length ? names : null;
+};
+
+/**
+ * The package names of an `npm install` when every one is already in the app's
+ * package.json, otherwise null.
+ * Reinstalling them (the model often reinstalls lucide-react) next to the running dev
+ * server can exhaust the sandbox's 1 GB of memory and hang it.
+ */
+const alreadyInstalled = async (sandbox, command) => {
+  const names = npmInstallPackages(command);
+  if (!names) return null;
+  try {
+    const pkg = JSON.parse(await sandbox.files.read("/home/user/package.json"));
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    return names.every((name) => name in deps) ? names : null;
+  } catch {
+    return null;
+  }
+};
+
 const reply = (call, output, writtenFiles = {}) => ({
   part: { functionResponse: { ...(call.id ? { id: call.id } : {}), name: call.name, response: output } },
   writtenFiles,
@@ -52,6 +82,11 @@ export const runTool = async (call, sandboxId) => {
 
   switch (call.name) {
     case "terminal": {
+      const installed = await alreadyInstalled(sandbox, parsed.data.command);
+      if (installed) {
+        return reply(call, { output: `Already installed: ${installed.join(", ")}. No need to install them.` });
+      }
+
       const buffers = { stdout: "", stderr: "" };
       try {
         const result = await sandbox.commands.run(parsed.data.command, {

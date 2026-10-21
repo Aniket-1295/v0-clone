@@ -41,7 +41,7 @@ const useChatMutation = (fn) => {
   });
 };
 
-/** mutateAsync([prompt, projectId|null]) */
+/** mutateAsync([prompt, projectId|null, image?]); image is { mimeType, data: base64 }. */
 export const useCreateChat = () => useChatMutation(createChat);
 /** mutateAsync([slug]) */
 export const useCreateChatFromTemplate = () => useChatMutation(createChatFromTemplate);

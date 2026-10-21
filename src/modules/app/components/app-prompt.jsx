@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
   FolderIcon,
   FolderPlusIcon,
+  ImagePlusIcon,
   InboxIcon,
   LayoutTemplateIcon,
   MicIcon,
@@ -31,9 +32,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { showActionError } from "@/lib/show-action-error";
 import { useSpeechInput } from "@/hooks/use-speech-input";
+import { useImageAttachment } from "@/hooks/use-image-attachment";
+import { ImageAttachmentPreview } from "@/components/image-attachment-preview";
 import { useCreateChat } from "@/modules/chats/hooks/chat";
 import { useGetProjects } from "@/modules/projects/hooks/project";
 import { useAppShell } from "./app-shell";
+
+// Sent when the user attaches an image without typing anything.
+const IMAGE_ONLY_PROMPT = "Recreate this design.";
 
 // The model the agent runs on today; more tiers come with the model picker work (A3).
 const MODELS = [{ id: "v0-mini", name: "v0 Mini", description: "Fast generation for everyday apps" }];
@@ -55,12 +61,14 @@ export default function AppPrompt({ initialProjectId = null }) {
   const createChat = useCreateChat();
   const speech = useSpeechInput({ getBase: () => value, onText: setValue });
   const project = projects?.find((p) => p.id === projectId);
+  const attachment = useImageAttachment();
   const hasText = value.trim().length > 0;
+  const canSend = (hasText || !!attachment.image) && !attachment.processing;
 
   const submit = async () => {
-    if (!hasText || createChat.isPending) return;
+    if (!canSend || createChat.isPending) return;
     try {
-      const chat = await createChat.mutateAsync([value.trim(), projectId]);
+      const chat = await createChat.mutateAsync([value.trim() || IMAGE_ONLY_PROMPT, projectId, attachment.image]);
       router.push(`/chat/${chat.id}`);
     } catch (error) {
       showActionError(error, router, "Failed to start the chat");
@@ -69,17 +77,21 @@ export default function AppPrompt({ initialProjectId = null }) {
 
   return (
     <div
+      {...attachment.dropProps}
       className={cn(
         "w-full rounded-xl border bg-card px-3 pb-2.5 pt-1 shadow-sm transition-colors dark:bg-neutral-950",
         focused && "border-foreground/30"
       )}
     >
+      <input {...attachment.inputProps} />
+      <ImageAttachmentPreview previewUrl={attachment.previewUrl} processing={attachment.processing} onRemove={attachment.clear} />
       <TextAreaAutosize
         autoFocus
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
+        onPaste={attachment.onPaste}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
@@ -99,6 +111,9 @@ export default function AppPrompt({ initialProjectId = null }) {
             <PlusIcon className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem onSelect={attachment.openPicker}>
+              <ImagePlusIcon className="size-4" /> Attach image
+            </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/templates"><LayoutTemplateIcon className="size-4" /> Start from a template</Link>
             </DropdownMenuItem>
@@ -152,7 +167,7 @@ export default function AppPrompt({ initialProjectId = null }) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {hasText ? (
+          {canSend ? (
             <button
               type="button"
               aria-label="Send"

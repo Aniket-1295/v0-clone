@@ -35,7 +35,11 @@ export const useCreateMessages = (chatId)=>{
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn:async(value)=>unwrap(await createMessages(value , chatId)),
+        // value: the prompt, or { value, image } with an image to recreate.
+        mutationFn:async(input)=>{
+            const { value, image = null } = typeof input === "string" ? { value: input } : input
+            return unwrap(await createMessages(value , chatId, image))
+        },
         onSuccess:()=>{
             queryClient.invalidateQueries({
                 queryKey:["messages" , chatId]

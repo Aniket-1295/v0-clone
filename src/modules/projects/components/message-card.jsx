@@ -48,9 +48,21 @@ const RestoreButton = ({ onRestore, isRestoring, disabled }) => (
   </Hint>
 );
 
-const UserMessage = ({ content }) => {
+const UserMessage = ({ content, attachments = [] }) => {
   return (
-    <div className="flex justify-end pl-10">
+    <div className="flex flex-col items-end gap-1.5 pl-10">
+      {attachments.map((attachment) => (
+        <a
+          key={attachment.id}
+          href={`/api/attachments/${attachment.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="block overflow-hidden rounded-xl border bg-muted"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/api/attachments/${attachment.id}`} alt="Attached image" className="max-h-48 max-w-64 object-contain" />
+        </a>
+      ))}
       <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-xl bg-muted px-3 py-2 text-sm">
         {content}
       </div>
@@ -125,6 +137,7 @@ const MessageCard = ({
   isActiveFragment,
   onFragmentClick,
   type,
+  attachments,
   ...restoreProps
 }) => {
   if (role === MessageRole.ASSISTANT) {
@@ -141,7 +154,7 @@ const MessageCard = ({
     );
   }
 
-  return <UserMessage content={content} />;
+  return <UserMessage content={content} attachments={attachments} />;
 };
 
 export default MessageCard;

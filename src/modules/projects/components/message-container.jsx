@@ -133,6 +133,7 @@ import {
               onFragmentOpen?.()
             }}
             type={message.type}
+            attachments={message.attachments}
             canRestore={!!message.fragments && message.fragments.id !== latestFragmentId}
             onRestore={() => onRestore(message.fragments)}
             isRestoring={restore.isPending && restore.variables === message.fragments?.id}
