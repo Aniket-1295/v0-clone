@@ -72,3 +72,13 @@ The project uses **PostgreSQL with Prisma ORM**.
 ```bash
 npx prisma migrate dev
 npx prisma studio
+
+## ✅ Checks
+
+- **Every pull request and push to `master`** runs `.github/workflows/ci.yml`: Prisma validate, lint, unit tests and a production build. Wait for it to pass before merging.
+- **Unit tests** (`npm test`, Vitest) cover the agent's error extraction, npm-install handling, Gemini model rotation, secret encryption, environment-variable helpers and code-edit validation. They need no database, sandbox or network.
+- **After a production deploy**, run the smoke check against the live site (`--sync` also re-registers the Inngest functions):
+
+  ```bash
+  node scripts/smoke.mjs https://v0-clone-alpha-kohl.vercel.app --sync
+  ```
