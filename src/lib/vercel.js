@@ -49,6 +49,37 @@ export const projectNameFor = (chat) => {
   return `v0-${slug || "app"}-${chat.id.slice(-6).toLowerCase()}`;
 };
 
+/**
+ * Makes the project's environment variables equal `env` ({ KEY: value }), creating the
+ * project first if needed, so they exist before its build. Stored on Vercel as encrypted
+ * values; variables removed from the chat are removed from the project.
+ */
+export const syncProjectEnv = async (projectName, env) => {
+  let exists = true;
+  try {
+    await vercel(`/v9/projects/${encodeURIComponent(projectName)}`);
+  } catch (error) {
+    if (error.status !== 404) throw error;
+    exists = false;
+  }
+  if (!exists && Object.keys(env).length === 0) return;
+  if (!exists) {
+    await vercel("/v11/projects", { method: "POST", body: JSON.stringify({ name: projectName, framework: "nextjs" }) });
+  }
+
+  const project = encodeURIComponent(projectName);
+  const { envs = [] } = await vercel(`/v9/projects/${project}/env`);
+  for (const existing of envs.filter((item) => !(item.key in env))) {
+    await vercel(`/v9/projects/${project}/env/${existing.id}`, { method: "DELETE" });
+  }
+  for (const [key, value] of Object.entries(env)) {
+    await vercel(`/v10/projects/${project}/env?upsert=true`, {
+      method: "POST",
+      body: JSON.stringify({ key, value, type: "encrypted", target: ["production", "preview", "development"] }),
+    });
+  }
+};
+
 /** Starts a production deployment of `files` ({ path: content }). Returns its id. */
 export const createDeployment = async ({ projectName, files }) => {
   const entries = Object.entries(files).filter(([, content]) => typeof content === "string");

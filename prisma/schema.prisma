@@ -68,6 +68,7 @@ model Chat {
 
   messages Message[]
   steps AgentStep[]
+  envVars ChatEnvVar[]
 
   @@index([userId])
   @@index([projectId])
@@ -165,3 +166,20 @@ model Usage{
 
 
 
+
+// An environment variable (e.g. an API key) for a chat's app: written into its sandbox's
+// .env.local and sent to its Vercel project on Publish. The value is encrypted at rest
+// (AES-256-GCM with ENV_VARS_SECRET) and never sent back to the browser.
+model ChatEnvVar {
+  id             String @id @default(cuid())
+  key            String
+  valueEncrypted String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chatId String
+  chat   Chat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, key])
+}

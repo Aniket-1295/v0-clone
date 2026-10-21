@@ -4,14 +4,17 @@ import {
   createChat,
   createChatFromTemplate,
   deleteChat,
+  deleteEnvVar,
   getChat,
   getChats,
   getPublishStatus,
+  listEnvVars,
   moveChat,
   publishChat,
   renameChat,
   restoreVersion,
   saveCodeEdits,
+  setEnvVar,
   shareChat,
   unshareChat,
   wakeChatSandbox,
@@ -81,6 +84,26 @@ export const useSaveCodeEdits = (chatId) => {
     },
   });
 };
+
+// Environment variables (masked) of a chat.
+export const useEnvVars = (chatId) =>
+  useQuery({
+    queryKey: ["env", chatId],
+    queryFn: async () => unwrap(await listEnvVars(chatId)),
+    enabled: !!chatId,
+  });
+
+const useEnvMutation = (chatId, fn) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (args) => unwrap(await fn(chatId, ...args)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["env", chatId] }),
+  });
+};
+/** mutateAsync([key, value]) */
+export const useSetEnvVar = (chatId) => useEnvMutation(chatId, setEnvVar);
+/** mutateAsync([key]) */
+export const useDeleteEnvVar = (chatId) => useEnvMutation(chatId, deleteEnvVar);
 
 // Share link on/off; the chat query (useGetChat) carries the current shareId.
 const useShareMutation = (chatId, action) => {

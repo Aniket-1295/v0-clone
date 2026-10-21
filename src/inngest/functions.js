@@ -6,6 +6,7 @@ import { generateText, runGeminiTurn, textOf } from "./gemini";
 import { CODE_AGENT_TOOLS, runTool } from "./tools";
 import { closeRunningSteps, describeCall, finishStep, startStep } from "./progress";
 import { checkApp, routesToCheck } from "./check-app";
+import { getChatEnvKeys } from "@/lib/env-vars";
 
 import  db  from "@/lib/db";
 import { refundCredits } from "@/lib/usage";
@@ -36,6 +37,14 @@ Work efficiently:
 const IMAGE_NOTE = `
 The user attached an image of a design (a screenshot or mockup). Recreate it as closely as you can: its layout, sections, colours, typography, spacing and components, built with Tailwind and shadcn/ui. Use the text you can read in it; where content is unreadable, use realistic placeholder content.
 Build only what the image shows, in app/page.tsx plus a few components if needed: do not add sections, pages, modals or features that are not in the image, and do not install packages (Tailwind, shadcn/ui and lucide-react are enough).`;
+// Environment variables: the agent learns the names, never the values.
+const envNote = (keys) =>
+  keys.length
+    ? `
+These environment variables are set for this app (in .env.local, managed by the user): ${keys.join(", ")}. Read them with process.env.NAME in server code (Server Components, Route Handlers, Server Actions); only names starting with NEXT_PUBLIC_ are available in client components. Never read, print, copy or overwrite .env.local, and never hard-code secret values.`
+    : `
+No environment variables are set for this app. If a feature needs an API key or other secret, read it from process.env (e.g. process.env.OPENAI_API_KEY) and tell the user, in your summary, which variable to add in the chat's Environment variables panel. Never ask for or hard-code secret values.`;
+
 // Only the newest images are sent to the model; older ones become a short note.
 const MAX_IMAGES = 2;
 
@@ -180,7 +189,8 @@ export const codeAgentFunction = inngest.createFunction(
     // thought signatures on later turns).
     const contents = toContents(history);
     const hasImage = history.some((turn) => turn.attachmentIds?.length);
-    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}`;
+    const envKeys = await step.run("get-env-names", () => getChatEnvKeys(chatId));
+    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}\n${envNote(envKeys)}`;
     const writtenFiles = {};
     let summary = "";
     // The last summary, kept in case the turn budget runs out while fixing an error.
