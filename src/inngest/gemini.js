@@ -32,10 +32,15 @@ let client;
 const getClient = () =>
   (client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { retryOptions: { attempts: 1 } } }));
 
-// Models that returned "quota exceeded", until when (per server instance).
+// Models to skip until a given time (per server instance): out of quota, or busy.
 const exhaustedUntil = new Map();
+// A busy model ("high demand", 503) usually recovers within a minute or two.
+const BUSY_SKIP_MS = 60 * 1000;
 
 const isQuotaError = (error) => error?.status === 429 || /RESOURCE_EXHAUSTED/.test(error?.message ?? "");
+// Temporary overload on Google's side; another model usually still answers.
+const isBusyError = (error) =>
+  error?.status === 503 || /UNAVAILABLE|high demand|overloaded/i.test(error?.message ?? "");
 
 const retryAfterMs = (error) => {
   const match = /retry in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)s/i.exec(error?.message ?? "");
@@ -58,7 +63,7 @@ const contentsFor = (contents, model) =>
 
 /**
  * One model turn, trying `models` in order (starting with `preferredModel` if given) and
- * skipping any that are out of quota. Returns the model's content exactly as received,
+ * skipping any that are out of quota or busy. Returns the model's content exactly as received,
  * tagged with the model that produced it (its thought signatures must be replayed as-is).
  */
 export const runGeminiTurn = async ({
@@ -91,13 +96,15 @@ export const runGeminiTurn = async ({
         finishReason: candidate?.finishReason ?? null,
       };
     } catch (error) {
-      if (!isQuotaError(error)) throw error;
-      exhaustedUntil.set(model, Date.now() + retryAfterMs(error));
+      if (isQuotaError(error)) exhaustedUntil.set(model, Date.now() + retryAfterMs(error));
+      else if (isBusyError(error)) exhaustedUntil.set(model, Date.now() + BUSY_SKIP_MS);
+      else throw error;
       lastError = error;
     }
   }
 
-  throw lastError ?? new Error("Every Gemini model is out of quota. Try again later.");
+  // Every model is out of quota or busy: the step fails and Inngest retries it later.
+  throw lastError ?? new Error("Every Gemini model is busy or out of quota. Try again later.");
 };
 
 export const textOf = (content) =>
