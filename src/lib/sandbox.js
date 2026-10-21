@@ -5,6 +5,13 @@ import { MessageRole, MessageType } from "@prisma/client";
 export const SANDBOX_TEMPLATE = "v0-version-final-next";
 // E2B kills sandboxes after 5 minutes by default; keep previews alive for 30.
 export const SANDBOX_TIMEOUT_MS = 30 * 60 * 1000;
+// A snapshot takes ~2 s; far longer means the sandbox is overloaded or hung.
+const SNAPSHOT_TIMEOUT_MS = 30_000;
+// How long a trivial command may take before a sandbox counts as hung.
+const HEALTH_CHECK_TIMEOUT_MS = 10_000;
+// npm's audit and fund requests nearly exhaust the sandbox's 1 GB next to the dev server
+// (measured: 27 MB left and a hang, versus ~200 MB left and done in seconds without them).
+export const LIGHT_NPM_FLAGS = "--no-audit --no-fund --prefer-offline --progress=false";
 
 const APP_ROOT = "/home/user";
 
@@ -42,10 +49,29 @@ process.stdout.write(JSON.stringify(out));
 
 export const getSandboxUrl = (sandbox) => `https://${sandbox.getHost(3000)}`;
 
-/** Connects to a running or paused sandbox and extends its timeout; null when it is gone. */
-export const connectSandbox = async (sandboxId) => {
+/** True when the sandbox runs a trivial command promptly. */
+const isResponsive = async (sandbox) => {
+  try {
+    await sandbox.commands.run("true", { timeoutMs: HEALTH_CHECK_TIMEOUT_MS });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Connects to a running or paused sandbox and extends its timeout; null when it is gone.
+ * With `checkHealth`, a sandbox that no longer answers (out of memory) is killed and
+ * also reported as gone, so the caller rebuilds it.
+ */
+export const connectSandbox = async (sandboxId, { checkHealth = false } = {}) => {
   try {
     const sandbox = await Sandbox.connect(sandboxId, { timeoutMs: SANDBOX_TIMEOUT_MS });
+    if (checkHealth && !(await isResponsive(sandbox))) {
+      console.error(`Sandbox ${sandboxId} is not responding; replacing it.`);
+      await sandbox.kill().catch(() => {});
+      return null;
+    }
     await sandbox.setTimeout(SANDBOX_TIMEOUT_MS);
     return sandbox;
   } catch (error) {
@@ -59,9 +85,27 @@ export const snapshotFiles = async (sandbox) => {
   // Piped through stdin: re-writing a script file in /tmp fails with "permission denied".
   const result = await sandbox.commands.run(
     `node - <<'V0_SNAPSHOT_EOF'\n${SNAPSHOT_SCRIPT}\nV0_SNAPSHOT_EOF`,
-    { timeoutMs: 60_000 }
+    { timeoutMs: SNAPSHOT_TIMEOUT_MS }
   );
   return JSON.parse(result.stdout);
+};
+
+const toRelativePath = (filePath) => filePath.replace(/^\/home\/user\//, "");
+
+/**
+ * The sandbox's file tree, or, when it cannot be read (an overloaded or hung sandbox),
+ * the chat's latest saved version with `writtenFiles` applied on top, so a finished
+ * generation is never lost just because the snapshot failed.
+ */
+export const snapshotWithFallback = async (sandboxId, chatId, writtenFiles = {}) => {
+  try {
+    return await snapshotFiles(await Sandbox.connect(sandboxId));
+  } catch (error) {
+    console.error(`Snapshot of sandbox ${sandboxId} failed; using the saved files instead:`, error.message);
+    const previous = await getLatestFragment(chatId);
+    const written = Object.fromEntries(Object.entries(writtenFiles).map(([path, content]) => [toRelativePath(path), content]));
+    return { ...(previous?.files ?? {}), ...written };
+  }
 };
 
 const toAbsolutePath = (filePath) =>
@@ -89,7 +133,7 @@ export const createSandboxFromFiles = async (files) => {
   )?.[1];
 
   if (restoredPackageJson && restoredPackageJson !== templatePackageJson) {
-    await sandbox.commands.run("npm install --no-audit --no-fund", {
+    await sandbox.commands.run(`npm install ${LIGHT_NPM_FLAGS}`, {
       cwd: APP_ROOT,
       timeoutMs: 5 * 60 * 1000,
     });
@@ -125,7 +169,7 @@ export const getOrCreateChatSandbox = async (chatId) => {
   });
 
   if (chat?.sandboxId) {
-    const sandbox = await connectSandbox(chat.sandboxId);
+    const sandbox = await connectSandbox(chat.sandboxId, { checkHealth: true });
     if (sandbox) return { sandbox, rebuilt: false };
   }
 

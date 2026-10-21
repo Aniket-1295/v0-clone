@@ -1,5 +1,6 @@
 import Sandbox from "@e2b/code-interpreter";
 import z from "zod";
+import { LIGHT_NPM_FLAGS } from "@/lib/sandbox";
 
 // Zod schemas are the single source: they validate the model's arguments and are
 // converted to the JSON Schema the model sees.
@@ -62,6 +63,10 @@ const alreadyInstalled = async (sandbox, command) => {
   }
 };
 
+// Every npm install the agent runs skips audit, fund and progress output: with them, an
+// install next to the dev server can exhaust the sandbox's memory and hang it.
+const withLightNpmFlags = (command) => command.replace(/\bnpm\s+(install|i|add)\b/g, `npm $1 ${LIGHT_NPM_FLAGS}`);
+
 const reply = (call, output, writtenFiles = {}) => ({
   part: { functionResponse: { ...(call.id ? { id: call.id } : {}), name: call.name, response: output } },
   writtenFiles,
@@ -89,7 +94,7 @@ export const runTool = async (call, sandboxId) => {
 
       const buffers = { stdout: "", stderr: "" };
       try {
-        const result = await sandbox.commands.run(parsed.data.command, {
+        const result = await sandbox.commands.run(withLightNpmFlags(parsed.data.command), {
           onStdout: (data) => {
             buffers.stdout += data;
           },
