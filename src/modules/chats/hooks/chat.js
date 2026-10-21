@@ -11,6 +11,8 @@ import {
   publishChat,
   renameChat,
   restoreVersion,
+  shareChat,
+  unshareChat,
   wakeChatSandbox,
 } from "../actions";
 
@@ -66,6 +68,18 @@ export const useRestoreVersion = (chatId) => {
     },
   });
 };
+
+// Share link on/off; the chat query (useGetChat) carries the current shareId.
+const useShareMutation = (chatId, action) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => unwrap(await action(chatId)),
+    onSuccess: ({ shareId }) =>
+      queryClient.setQueryData(["chats", "one", chatId], (chat) => (chat ? { ...chat, shareId } : chat)),
+  });
+};
+export const useShareChat = (chatId) => useShareMutation(chatId, shareChat);
+export const useUnshareChat = (chatId) => useShareMutation(chatId, unshareChat);
 
 // Publish state of a chat; polls while Vercel is building it.
 export const usePublishStatus = (chatId) =>
