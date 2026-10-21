@@ -73,6 +73,16 @@ The project uses **PostgreSQL with Prisma ORM**.
 npx prisma migrate dev
 npx prisma studio
 
+## 🚀 Production setup
+
+These are optional locally; set them in Vercel for production.
+
+- **Clerk webhook (user sync)**: in the Clerk dashboard → Webhooks, add an endpoint `https://<your-domain>/api/webhooks/clerk` subscribed to `user.created`, `user.updated` and `user.deleted`, and set its signing secret as `CLERK_WEBHOOK_SIGNING_SECRET`. Without it, users are still created on their first action.
+- **Sentry (error monitoring)**: `SENTRY_DSN` (server), `NEXT_PUBLIC_SENTRY_DSN` (browser). For readable stack traces, also `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_AUTH_TOKEN` (source map upload at build time). Monitoring is off when the DSNs are unset.
+- **Site URL and support email**: `NEXT_PUBLIC_SITE_URL` (canonical URL for metadata, `robots.txt` and the sitemap; defaults to the Vercel production URL) and `NEXT_PUBLIC_SUPPORT_EMAIL` (shown on the Terms and Privacy pages).
+- **Name**: the product name lives in `src/lib/site.js`.
+- **Legal pages**: `/terms` and `/privacy` are drafts; review them before launch.
+
 ## ✅ Checks
 
 - **Every pull request and push to `master`** runs `.github/workflows/ci.yml`: Prisma validate, lint, unit tests and a production build. Wait for it to pass before merging.

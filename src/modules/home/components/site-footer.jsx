@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { TEMPLATE_CATEGORIES } from "@/templates/registry";
+import { SITE_NAME } from "@/lib/site";
 
 const COLUMNS = [
   {
@@ -23,6 +24,13 @@ const COLUMNS = [
     ],
   },
   {
+    title: "Legal",
+    links: [
+      { label: "Terms of Service", href: "/terms" },
+      { label: "Privacy Policy", href: "/privacy" },
+    ],
+  },
+  {
     title: "Social",
     links: [{ label: "LinkedIn", href: "https://www.linkedin.com/in/aniket-kamble-865694214/", external: true }],
   },
@@ -31,7 +39,7 @@ const COLUMNS = [
 export default function SiteFooter() {
   return (
     <footer className="border-t">
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-8 px-4 py-12 md:grid-cols-5">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-8 px-4 py-12 md:grid-cols-6">
         <div className="col-span-2 md:col-span-1">
           <Image src="/logo.svg" alt="v0" width={28} height={28} className="invert dark:invert-0" />
         </div>
@@ -56,7 +64,7 @@ export default function SiteFooter() {
           </div>
         ))}
       </div>
-      <p className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs text-muted-foreground">© 2026 v0 clone. All rights reserved.</p>
+      <p className="mx-auto w-full max-w-6xl px-4 pb-10 text-xs text-muted-foreground">© {new Date().getFullYear()} {SITE_NAME}. All rights reserved.</p>
     </footer>
   );
 }
