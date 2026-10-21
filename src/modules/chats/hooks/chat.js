@@ -6,7 +6,9 @@ import {
   deleteChat,
   getChat,
   getChats,
+  getPublishStatus,
   moveChat,
+  publishChat,
   renameChat,
   restoreVersion,
   wakeChatSandbox,
@@ -62,6 +64,24 @@ export const useRestoreVersion = (chatId) => {
       queryClient.invalidateQueries({ queryKey: ["sandbox", chatId] });
       queryClient.invalidateQueries({ queryKey: ["chats"] });
     },
+  });
+};
+
+// Publish state of a chat; polls while Vercel is building it.
+export const usePublishStatus = (chatId) =>
+  useQuery({
+    queryKey: ["publish", chatId],
+    queryFn: async () => unwrap(await getPublishStatus(chatId)),
+    enabled: !!chatId,
+    refetchInterval: (query) => (query.state.data?.status === "building" ? 3000 : false),
+  });
+
+/** mutate(): publishes (or updates) the chat's latest version. */
+export const usePublishChat = (chatId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => unwrap(await publishChat(chatId)),
+    onSuccess: (data) => queryClient.setQueryData(["publish", chatId], data),
   });
 };
 

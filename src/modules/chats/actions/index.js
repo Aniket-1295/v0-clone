@@ -12,6 +12,7 @@ import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
+import { createDeployment, getDeploymentState, isPublishConfigured, projectNameFor } from "@/lib/vercel";
 import {
   connectSandbox,
   getLatestFragment,
@@ -265,4 +266,96 @@ export const restoreVersion = async (chatId, fragmentId) => {
     console.error("restoreVersion failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Could not restore this version. Please try again.");
   }
+};
+
+const PUBLISH_SELECT = {
+  id: true,
+  title: true,
+  vercelProjectName: true,
+  publishDeploymentId: true,
+  publishStatus: true,
+  publishError: true,
+  publishedUrl: true,
+  publishedAt: true,
+  publishedFragmentId: true,
+};
+
+const publishView = (chat, latest) => ({
+  configured: isPublishConfigured(),
+  // Template versions only hold app/page.tsx; they become a full app after a prompt.
+  canPublish: !!latest && !isHostedPreview(latest),
+  status: chat.publishStatus ?? null,
+  url: chat.publishedUrl ?? null,
+  error: chat.publishError ?? null,
+  publishedAt: chat.publishedAt ?? null,
+  isLatestPublished: !!latest && chat.publishedFragmentId === latest.id,
+});
+
+/**
+ * Deploys the chat's latest version to its own Vercel project (created on first publish),
+ * so the app stays online at a permanent URL. Publishing again updates it.
+ */
+export const publishChat = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: PUBLISH_SELECT });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  if (!isPublishConfigured()) return fail(ActionErrorCode.INTERNAL, "Publishing is not set up yet.");
+  if (chat.publishStatus === "building") return fail(ActionErrorCode.INTERNAL, "A publish is already in progress.");
+
+  const latest = await getLatestFragment(chatId);
+  if (!latest || isHostedPreview(latest)) {
+    return fail(ActionErrorCode.INTERNAL, "Send a prompt first: there is no generated app to publish yet.");
+  }
+
+  try {
+    const projectName = chat.vercelProjectName ?? projectNameFor(chat);
+    const { id } = await createDeployment({ projectName, files: latest.files });
+    const updated = await db.chat.update({
+      where: { id: chatId },
+      data: {
+        vercelProjectName: projectName,
+        publishDeploymentId: id,
+        publishStatus: "building",
+        publishError: null,
+        publishedFragmentId: latest.id,
+      },
+      select: PUBLISH_SELECT,
+    });
+    return ok(publishView(updated, latest));
+  } catch (error) {
+    console.error("publishChat failed:", error);
+    return fail(ActionErrorCode.INTERNAL, `Could not start publishing: ${error.message}`);
+  }
+};
+
+/** The chat's publish state; while a deployment builds, asks Vercel how it is going. */
+export const getPublishStatus = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  let chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: PUBLISH_SELECT });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  const latest = await getLatestFragment(chatId);
+
+  if (chat.publishStatus === "building" && chat.publishDeploymentId && isPublishConfigured()) {
+    try {
+      const deployment = await getDeploymentState(chat.publishDeploymentId);
+      if (deployment.state !== "building") {
+        chat = await db.chat.update({
+          where: { id: chatId },
+          data:
+            deployment.state === "ready"
+              ? { publishStatus: "ready", publishedUrl: deployment.url, publishedAt: new Date(), publishError: null }
+              : { publishStatus: "error", publishError: deployment.error },
+          select: PUBLISH_SELECT,
+        });
+      }
+    } catch (error) {
+      console.error("getPublishStatus failed:", error);
+    }
+  }
+
+  return ok(publishView(chat, latest));
 };
