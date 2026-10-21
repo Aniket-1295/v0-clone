@@ -5,6 +5,7 @@ import {
   createChatFromTemplate,
   deleteChat,
   deleteEnvVar,
+  enableDesignMode,
   getChat,
   getChats,
   getPublishStatus,
@@ -104,6 +105,10 @@ const useEnvMutation = (chatId, fn) => {
 export const useSetEnvVar = (chatId) => useEnvMutation(chatId, setEnvVar);
 /** mutateAsync([key]) */
 export const useDeleteEnvVar = (chatId) => useEnvMutation(chatId, deleteEnvVar);
+
+/** mutateAsync(): installs the design mode helper in the chat's sandbox. */
+export const useEnableDesignMode = (chatId) =>
+  useMutation({ mutationFn: async () => unwrap(await enableDesignMode(chatId)) });
 
 // Share link on/off; the chat query (useGetChat) carries the current shareId.
 const useShareMutation = (chatId, action) => {

@@ -6,7 +6,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import ProjectHeader from "./project-header";
@@ -15,6 +15,7 @@ import { strToU8, zipSync } from "fflate";
 import {
   Code,
   CrownIcon,
+  MousePointerClickIcon,
   DownloadIcon,
   ExternalLink,
   EyeIcon,
@@ -25,13 +26,15 @@ import {
 import FragmentWeb from "./fragment-web";
 import { FileExplorer } from "./file-explorer";
 import { Hint } from "@/components/ui/hint";
+import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { MessageRole } from "@prisma/client";
-import { useGetChat, useKeepSandboxAlive, useSaveCodeEdits } from "@/modules/chats/hooks/chat";
-import { useGetMessages } from "@/modules/messages/hooks/message";
+import { useEnableDesignMode, useGetChat, useKeepSandboxAlive, useSaveCodeEdits } from "@/modules/chats/hooks/chat";
+import { useCreateMessages, useGetMessages } from "@/modules/messages/hooks/message";
+import DesignPanel from "./design-panel";
 import { showActionError } from "@/lib/show-action-error";
 import PublishButton from "./publish-button";
 import ShareButton from "./share-button";
@@ -89,6 +92,72 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
   const [copied, setCopied] = useState(false);
   const sandboxUrl = activeFragment?.sandboxUrl;
 
+  // Design mode: a helper inside the preview reports the clicked element (postMessage).
+  const iframeRef = useRef(null);
+  const [designing, setDesigning] = useState(false);
+  const [selection, setSelection] = useState(null);
+  const enableDesign = useEnableDesignMode(chatId);
+  const askV0 = useCreateMessages(chatId);
+  const canDesign = isLatest && !generating && !!activeFragment?.files && !!sandboxUrl;
+  // Leaving the latest version or starting a generation pauses design mode.
+  const designOn = designing && canDesign;
+  const tellPreview = useCallback((enabled) => {
+    iframeRef.current?.contentWindow?.postMessage({ type: "v0-design", enabled }, "*");
+  }, []);
+
+  useEffect(() => {
+    const onMessage = (event) => {
+      if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
+      if (event.data?.type === "v0-design:ready") tellPreview(designOn);
+      if (event.data?.type === "v0-design:select" && designOn) setSelection(event.data);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [designOn, tellPreview]);
+
+  useEffect(() => {
+    tellPreview(designOn);
+  }, [designOn, tellPreview]);
+
+  const stopDesign = useCallback(() => {
+    setDesigning(false);
+    setSelection(null);
+    tellPreview(false);
+  }, [tellPreview]);
+
+  const startDesign = async () => {
+    try {
+      await enableDesign.mutateAsync();
+      setDesigning(true);
+      setTabState("preview");
+      tellPreview(true);
+    } catch (error) {
+      showActionError(error, router, "Could not start design mode.");
+    }
+  };
+
+  const applyDesign = async (path, source) => {
+    try {
+      await onSaveEdits({ [path]: source });
+      setSelection(null);
+      // Clears the highlighted element; the preview reloads the changed file itself.
+      tellPreview(false);
+      tellPreview(true);
+    } catch {
+      // onSaveEdits already showed the error.
+    }
+  };
+
+  const askDesignChange = async (prompt) => {
+    try {
+      await askV0.mutateAsync(prompt);
+      toast.success("Sent to v0");
+      stopDesign();
+    } catch (error) {
+      showActionError(error, router, "Could not send the request.");
+    }
+  };
+
   const onCopy = () => {
     navigator.clipboard.writeText(sandboxUrl);
     setCopied(true);
@@ -115,6 +184,19 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
 
         {tabState === "preview" && sandboxUrl && (
           <div className="flex min-w-0 flex-1 items-center gap-1">
+            <Hint text={canDesign ? "Design: click an element to edit it" : readOnlyReason || "Design"} side="bottom">
+              <Button
+                variant={designOn ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 shrink-0 gap-1.5 text-xs"
+                aria-pressed={designOn}
+                disabled={!canDesign || enableDesign.isPending}
+                onClick={designOn ? stopDesign : startDesign}
+              >
+                {enableDesign.isPending ? <Spinner className="size-3.5" /> : <MousePointerClickIcon className="size-3.5" />}
+                Design
+              </Button>
+            </Hint>
             <Hint text="Refresh" side="bottom">
               <Button
                 variant="ghost"
@@ -164,9 +246,26 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
         )}
       </div>
 
-      <TabsContent value="preview" className="min-h-0 flex-1 bg-background">
+      <TabsContent value="preview" className="flex min-h-0 flex-1 bg-background">
         {activeFragment ? (
-          <FragmentWeb data={activeFragment} refreshKey={previewKey} />
+          <>
+            <div className="min-w-0 flex-1">
+              <FragmentWeb data={activeFragment} refreshKey={previewKey} iframeRef={iframeRef} />
+            </div>
+            {designOn && (
+              <div className="w-72 shrink-0 border-l bg-card">
+                <DesignPanel
+                  key={selection ? `${selection.tag}:${selection.className}:${selection.text}` : "none"}
+                  selection={selection}
+                  files={activeFragment.files}
+                  onApply={applyDesign}
+                  onAskV0={askDesignChange}
+                  busy={saveEdits.isPending || askV0.isPending}
+                  onClose={stopDesign}
+                />
+              </div>
+            )}
+          </>
         ) : (
           <EmptyPane icon={MonitorIcon} text="Your preview will appear here" />
         )}

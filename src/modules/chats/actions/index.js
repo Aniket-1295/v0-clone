@@ -22,6 +22,7 @@ import {
   getOrCreateChatSandbox,
   isHostedPreview,
   restoreFragment,
+  installDesignScript,
   saveCodeEditsAsVersion,
   syncChatEnvToSandbox,
   validateCodeEdits,
@@ -493,4 +494,18 @@ export const deleteEnvVar = async (chatId, key) => {
   await db.chatEnvVar.deleteMany({ where: { chatId, key } });
   await syncChatEnvToSandbox(chatId);
   return ok({ key });
+};
+
+/** Turns on design mode for the chat's preview: installs the selection helper in its sandbox. */
+export const enableDesignMode = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  if (!(await ownChat(chatId, user.id))) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  try {
+    return ok(await installDesignScript(chatId));
+  } catch (error) {
+    console.error("enableDesignMode failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not start design mode. Please try again.");
+  }
 };
