@@ -18,6 +18,7 @@ import {
   pushToGithub,
   renameChat,
   restoreVersion,
+  runTerminalCommand,
   saveCodeEdits,
   setEnvVar,
   shareChat,
@@ -200,4 +201,10 @@ export const useAppLogs = (chatId, { enabled = true } = {}) =>
     enabled: !!chatId && enabled,
     refetchInterval: enabled ? LOGS_INTERVAL_MS : false,
     retry: false,
+  });
+
+/** Runs a command in the chat's sandbox and returns its output. */
+export const useRunTerminalCommand = (chatId) =>
+  useMutation({
+    mutationFn: async (command) => unwrap(await runTerminalCommand(chatId, command)),
   });

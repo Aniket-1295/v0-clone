@@ -15,6 +15,7 @@ import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
 import { validatePrompt } from "@/lib/generation-limits";
 import { APP_LOG_FILE, APP_LOG_LINES } from "@/lib/app-logs";
+import { TERMINAL_CWD, TERMINAL_TIMEOUT_MS, clampOutput, validateCommand } from "@/lib/terminal";
 import { checkNoRunningGeneration } from "@/lib/generation-guard";
 import { encryptSecret, decryptSecret, isSecretsConfigured } from "@/lib/secrets";
 import { createRepository, isGithubConfigured, pushFiles, repoNameFor, revokeToken } from "@/lib/github";
@@ -281,6 +282,58 @@ export const getAppLogs = async (chatId) => {
   } catch (error) {
     console.error("getAppLogs failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Could not read the logs. Please try again.");
+  }
+};
+
+/**
+ * Runs a one-shot shell command in the chat's sandbox (the app root) and returns its output,
+ * for the Terminal panel. Blocked while a generation is running, since the agent is using the
+ * sandbox. Returns { state: "none" } when the chat has no sandbox of its own, { state: "asleep" }
+ * when it has expired, or { state: "ok", stdout, stderr, exitCode, timedOut }.
+ */
+export const runTerminalCommand = async (chatId, value) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const { command, error: commandError } = validateCommand(value);
+  if (commandError) return fail(ActionErrorCode.INVALID_INPUT, commandError);
+
+  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { sandboxId: true } });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  const lastMessage = await db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { role: true } });
+  if (lastMessage?.role === MessageRole.USER) {
+    return fail(ActionErrorCode.GENERATION_IN_PROGRESS, "Wait for the current generation to finish before running a command.");
+  }
+
+  const fragment = await getLatestFragment(chatId);
+  if (!chat.sandboxId || !fragment || isHostedPreview(fragment)) return ok({ state: "none" });
+
+  try {
+    const sandbox = await connectSandbox(chat.sandboxId);
+    if (!sandbox) return ok({ state: "asleep" });
+
+    let timedOut = false;
+    const result = await sandbox.commands
+      .run(command, { cwd: TERMINAL_CWD, timeoutMs: TERMINAL_TIMEOUT_MS })
+      .catch((runError) => {
+        // A non-zero exit throws a CommandExitError that carries stdout/stderr/exitCode;
+        // a timeout or kill throws without them.
+        if (typeof runError?.exitCode === "number") return runError;
+        timedOut = true;
+        return { stdout: runError?.stdout ?? "", stderr: "", exitCode: null };
+      });
+
+    return ok({
+      state: "ok",
+      stdout: clampOutput(result.stdout),
+      stderr: clampOutput(result.stderr),
+      exitCode: result.exitCode ?? null,
+      timedOut,
+    });
+  } catch (error) {
+    console.error("runTerminalCommand failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not run the command. Please try again.");
   }
 };
 
