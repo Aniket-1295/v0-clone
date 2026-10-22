@@ -1,6 +1,5 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { CheckIcon, ChevronDownIcon, LockIcon, SparklesIcon } from "lucide-react";
@@ -13,48 +12,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useStoredPreference } from "@/hooks/use-stored-preference";
 import { DEFAULT_TIER_ID, MODEL_TIERS, creditsLabel, getTier } from "@/lib/model-tiers";
-
-// The chosen tier is remembered in this browser and shared by every prompt box.
-const STORAGE_KEY = "v0-model-tier";
-const CHANGE_EVENT = "v0-model-tier-change";
-
-const readStored = () => {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_TIER_ID;
-  } catch {
-    return DEFAULT_TIER_ID;
-  }
-};
-
-const subscribe = (onChange) => {
-  window.addEventListener(CHANGE_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, onChange);
-    window.removeEventListener("storage", onChange);
-  };
-};
 
 /**
  * The model tier to send with a prompt, and a setter. A remembered paid tier falls back to
  * Mini while the user is not on the Pro plan (the server checks the plan too).
  */
 export const useModelTier = () => {
-  const stored = useSyncExternalStore(subscribe, readStored, () => DEFAULT_TIER_ID);
+  // Remembered in this browser and shared by every prompt box.
+  const [stored, setTierId] = useStoredPreference("v0-model-tier", DEFAULT_TIER_ID);
   const { has } = useAuth();
   const hasPro = !!has?.({ plan: "pro" });
   const tier = getTier(stored);
   const usable = tier.plan === "pro" && !hasPro ? getTier(DEFAULT_TIER_ID) : tier;
-
-  const setTierId = (id) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, id);
-    } catch {
-      // Storage blocked: the choice lasts until the page reloads.
-    }
-    window.dispatchEvent(new Event(CHANGE_EVENT));
-  };
 
   return { tier: usable, hasPro, setTierId };
 };
@@ -65,7 +36,7 @@ export default function ModelPicker({ className, disabled = false }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger disabled={disabled} aria-label={`Model: ${tier.name}`} className={className}>
+      <DropdownMenuTrigger disabled={disabled} aria-label={`Model: ${tier.name}`} className={cn("whitespace-nowrap", className)}>
         <SparklesIcon className="size-3.5" /> {tier.name} <ChevronDownIcon className="size-3.5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">

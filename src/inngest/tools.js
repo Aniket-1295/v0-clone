@@ -1,6 +1,8 @@
 import Sandbox from "@e2b/code-interpreter";
 import z from "zod";
 import { LIGHT_NPM_FLAGS } from "@/lib/sandbox";
+import { IMAGE_ASPECT_RATIOS, saveGeneratedImage } from "@/lib/generated-images";
+import { generateImage } from "./gemini";
 
 // Zod schemas are the single source: they validate the model's arguments and are
 // converted to the JSON Schema the model sees.
@@ -19,7 +21,18 @@ const TOOL_SCHEMAS = {
     description: "Read files in the sandbox",
     parameters: z.object({ files: z.array(z.string()) }),
   },
+  // Only offered when the user turned on "Generate images" (see agentTools).
+  generateImage: {
+    description:
+      "Generate an image (photo, illustration or background) for the app from a detailed description. Returns its public URL, width and height; use the URL as an <img> src.",
+    parameters: z.object({
+      prompt: z.string().min(1).max(1000).describe("What the image shows: subject, style, colours, lighting. No text in the image."),
+      aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).default("16:9"),
+    }),
+  },
 };
+
+const IMAGE_TOOLS = new Set(["generateImage"]);
 
 const toJsonSchema = (schema) => {
   const { $schema, ...jsonSchema } = z.toJSONSchema(schema);
@@ -27,11 +40,15 @@ const toJsonSchema = (schema) => {
   return jsonSchema;
 };
 
-export const CODE_AGENT_TOOLS = Object.entries(TOOL_SCHEMAS).map(([name, { description, parameters }]) => ({
+const toDeclaration = ([name, { description, parameters }]) => ({
   name,
   description,
   parametersJsonSchema: toJsonSchema(parameters),
-}));
+});
+
+/** The tools the code agent may call; generateImage only when `images` is on. */
+export const agentTools = ({ images = false } = {}) =>
+  Object.entries(TOOL_SCHEMAS).filter(([name]) => images || !IMAGE_TOOLS.has(name)).map(toDeclaration);
 
 // `npm install a b --yes` (no other commands chained): the package names it installs.
 export const npmInstallPackages = (command) => {
@@ -72,16 +89,35 @@ const reply = (call, output, writtenFiles = {}) => ({
   writtenFiles,
 });
 
+// Sent back when image generation is off, used up or unavailable: the agent should not retry.
+const NO_MORE_IMAGES =
+  "Do not call generateImage again in this task. Where an image is still needed, build a placeholder in code (a gradient or a tinted block with a lucide-react icon). Do not use image URLs from the web (Unsplash or any other site): guessed URLs break. Say in your summary that images could not be generated and placeholders are shown.";
+
+const runGenerateImage = async (call, { prompt, aspectRatio }, { chatId, imagesLeft = 0 }) => {
+  if (imagesLeft <= 0) return reply(call, { error: `The image limit for this task is reached. ${NO_MORE_IMAGES}` });
+  try {
+    const image = await generateImage({ prompt, aspectRatio });
+    const { url, width, height } = await saveGeneratedImage({ chatId, prompt, data: image.data });
+    return reply(call, { output: { url, width, height } });
+  } catch (error) {
+    if (error.unavailable) return reply(call, { error: `Image generation is unavailable right now (quota). ${NO_MORE_IMAGES}` });
+    return reply(call, { error: `Could not generate this image: ${error.message}` });
+  }
+};
+
 /**
- * Runs one function call in the sandbox. Returns the functionResponse part to send back
- * and the files it wrote (path -> content).
+ * Runs one function call. Returns the functionResponse part to send back and the files it
+ * wrote (path -> content). `context` is { chatId, images, imagesLeft } for generateImage.
  */
-export const runTool = async (call, sandboxId) => {
+export const runTool = async (call, sandboxId, context = {}) => {
   const spec = TOOL_SCHEMAS[call.name];
-  if (!spec) return reply(call, { error: `Unknown tool: ${call.name}` });
+  if (!spec || (IMAGE_TOOLS.has(call.name) && !context.images)) return reply(call, { error: `Unknown tool: ${call.name}` });
 
   const parsed = spec.parameters.safeParse(call.args ?? {});
   if (!parsed.success) return reply(call, { error: `Invalid arguments: ${parsed.error.message}` });
+
+  // Needs no sandbox.
+  if (call.name === "generateImage") return runGenerateImage(call, parsed.data, context);
 
   const sandbox = await Sandbox.connect(sandboxId);
 

@@ -81,6 +81,7 @@ model Chat {
   messages Message[]
   steps AgentStep[]
   envVars ChatEnvVar[]
+  images GeneratedImage[]
 
   @@index([userId])
   @@index([projectId])
@@ -196,4 +197,23 @@ model ChatEnvVar {
   chat   Chat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@unique([chatId, key])
+}
+
+// An image the agent generated for the chat's app (the generateImage tool). Served publicly
+// by /api/images/[id] so the app can use it as an <img src> in the preview, a download,
+// GitHub or a published site; the id (a cuid) is the only key.
+model GeneratedImage {
+  id       String @id @default(cuid())
+  prompt   String
+  mimeType String
+  width    Int
+  height   Int
+  data     Bytes
+
+  createdAt DateTime @default(now())
+
+  chatId String
+  chat   Chat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
 }

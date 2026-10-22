@@ -35,10 +35,11 @@ export const useCreateMessages = (chatId)=>{
     const queryClient = useQueryClient();
 
     return useMutation({
-        // value: the prompt, or { value, image, tierId } with an image to recreate and a model tier.
+        // value: the prompt, or { value, image, tierId, images } with an image to recreate, a
+        // model tier and whether the agent may generate images.
         mutationFn:async(input)=>{
-            const { value, image = null, tierId = null } = typeof input === "string" ? { value: input } : input
-            return unwrap(await createMessages(value , chatId, image, tierId))
+            const { value, image = null, tierId = null, images = false } = typeof input === "string" ? { value: input } : input
+            return unwrap(await createMessages(value , chatId, image, tierId, images))
         },
         onSuccess:()=>{
             queryClient.invalidateQueries({

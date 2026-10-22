@@ -25,12 +25,12 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | Upload from computer | 🟡 | Images only; v0 also takes files |
 | Voice dictation | ✅ | |
 | **Instructions** (custom rules the AI always follows) | ✅ | Per project and per chat, added to the system prompt; chat wins on conflict |
-| **Generate Images** (AI images inside the app) | ❌ | Gemini image model, saved into the app's `public/` |
+| **Generate Images** (AI images inside the app) | 🟡 | "+" menu switch; agent tool stores images in our DB, served at `/api/images/<id>`; needs a paid Gemini key — PR open |
 | **Import from Figma** | ❌ | Needs a Figma token; frame → image/structure → agent |
 | Skills | ❌ | Reusable prompt packs; can follow Instructions |
 | MCPs | ❌ | Connect tools to the agent; large, later |
 | Auto Permissions | ⛔ | Specific to v0's agent; not needed for ours |
-| **Model picker: Mini / Pro / Max** | 🟡 | Mini 1 credit, Pro 2 (high thinking), Max 4 (Gemini 3.1 Pro, Pro plan) — PR open |
+| **Model picker: Mini / Pro / Max** | ✅ | Mini 1 credit, Pro 2 (high thinking), Max 4 (Gemini 3.1 Pro, Pro plan) (PR #52) |
 | "Use your ChatGPT plan in v0" | ⛔ | Vercel–OpenAI partnership |
 
 ## 3. Starting work (New Chat menu, home)
@@ -69,8 +69,8 @@ Ordered by value to users and how much existing code each one reuses.
 4. ✅ **Settings panel + "+" panel menu**: one place for env vars, GitHub, sharing, publishing; add/close panels like v0. (PR #48, merged)
 5. ✅ **Instructions**: per-project and per-chat rules for the agent. (PR #49, merged)
 6. ✅ **Import from GitHub**: start a chat from an existing repository. (PR #50, merged)
-7. 🟡 **Model tiers**: Mini / Pro / Max mapped to Gemini models, limited by plan, with credit costs. (`feat/model-tiers`)
-8. **Generate Images**: the agent can create images for the app.
+7. ✅ **Model tiers**: Mini / Pro / Max mapped to Gemini models, limited by plan, with credit costs. (PR #52, merged)
+8. 🟡 **Generate Images**: the agent can create images for the app. (`feat/generate-images`)
 9. **Small polish**: star and duplicate chats, project search in the picker, "Worked for Xs", credits in the sidebar.
 10. **Database**: connect Neon / Supabase, browse tables.
 11. **Design Systems**.

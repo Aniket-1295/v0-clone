@@ -17,9 +17,9 @@ const findOwnChat = (chatId, userId) => db.chat.findFirst({ where: { id: chatId,
 
 /**
  * Sends a follow-up prompt (optionally with an image to recreate) and kicks off generation
- * on the model tier `tierId` (Mini when omitted).
+ * on the model tier `tierId` (Mini when omitted). `images` lets the agent generate images.
  */
-export const createMessages = async (value, chatId, image = null, tierId = null) => {
+export const createMessages = async (value, chatId, image = null, tierId = null, images = false) => {
   const user = await getCurrentUser();
 
   if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
@@ -68,6 +68,7 @@ export const createMessages = async (value, chatId, image = null, tierId = null)
         chatId,
         userId: user.clerkId,
         tier: tier.id,
+        images: images === true,
       },
     });
 

@@ -53,3 +53,22 @@ describe("runGeminiTurn model rotation", () => {
     await expect(turn()).rejects.toMatchObject({ status: 503 });
   });
 });
+
+describe("generateImage", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    Object.assign(fake, { calls: [], busy: new Set(), quota: new Set(), badRequest: false });
+  });
+
+  it("throws an unavailable error when every image model is out of quota", async () => {
+    const { generateImage } = await import("@/inngest/gemini");
+    ["gemini-3.1-flash-image", "gemini-2.5-flash-image"].forEach((m) => fake.quota.add(m));
+    await expect(generateImage({ prompt: "a cup", aspectRatio: "1:1" })).rejects.toMatchObject({ unavailable: true });
+  });
+
+  it("fails clearly when the model answers without an image", async () => {
+    // The fake SDK answers with text only.
+    const { generateImage } = await import("@/inngest/gemini");
+    await expect(generateImage({ prompt: "a cup", aspectRatio: "1:1" })).rejects.toThrow(/no image/);
+  });
+});
