@@ -77,6 +77,8 @@ model Chat {
   instructions String?
   // Favorites are listed first.
   starred Boolean @default(false)
+  // Encrypted Postgres URL for the Database panel; injected as DATABASE_URL.
+  databaseUrlEncrypted String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

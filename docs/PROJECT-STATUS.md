@@ -1,14 +1,12 @@
 # v0-clone: project status, scope and features
 
-Snapshot taken 22 Oct 2026. `master` is at commit `1c3626c` after 50 merged PRs and 143 commits.
-Live deployment: https://v0-clone-alpha-kohl.vercel.app
+Snapshot taken 22 Oct 2026. `master` is at commit `21b9e4b` after 55 merged PRs and 154 commits
+(includes the production schema-drift fix, PR #55). **Database** is built on `feat/database`
+(not on `master` yet). Live deployment: https://v0-clone-alpha-kohl.vercel.app
 
-Recently shipped on `master`: production hygiene (Clerk webhook onboarding, Sentry, Terms/Privacy,
-robots/sitemap, Open Graph — PR #43), abuse controls (one generation at a time per user,
-server-side prompt limit — PR #44), the **Diff** tab (PR #45), the **Logs** tab (PR #46), the
-**Terminal** tab (PR #47), the **Settings** panel with a `+` menu to add or close workspace
-tabs (PR #48), **Instructions** (PR #49) — standing rules per project and per chat that the
-agent follows on every generation — and **Import from GitHub** (PR #50). Next: **Model tiers**.
+Recently shipped on `master`: through small polish (PR #54) and the prod RSC/schema fix
+(PR #55). Next: **Database** — connect a Postgres URL per chat, browse tables, and let the
+agent see the schema.
 
 ## 1. What the project is
 
@@ -35,8 +33,8 @@ The audit in [PRODUCT-READINESS-AUDIT.md](PRODUCT-READINESS-AUDIT.md) (17 Oct 20
 project at 30–35% of a sellable v1. Since then all of Phase 1 has shipped, most of the Phase 3
 feature list, and most of the Phase 2 production-hygiene list (webhook onboarding, Sentry, legal
 and SEO pages). A separate [v0.app feature gap](V0-FEATURE-GAP.md) doc tracks parity work with
-v0's workspace (Diff, Logs, Terminal, Settings, Instructions and GitHub import shipped; model
-tiers and more still planned).
+v0's workspace (panels through Settings, Instructions, GitHub import, model tiers and Generate
+Images shipped; Database on `feat/database`; Design Systems next).
 
 ## 3. Tech stack
 
@@ -110,13 +108,13 @@ tiers and more still planned).
   the sandbox's dev-server log), refreshed every few seconds, filterable by level, source and text.
 - **Terminal tab**: run one-shot shell commands in the chat's sandbox and see their output, with
   exit codes and command history. Blocked while a generation is running.
-- **Settings panel**: instructions (first card), env vars, sharing, GitHub and publish in one
+- **Settings panel**: instructions, env vars, database, sharing, GitHub and publish in one
   place. Share and Publish also stay in the header. If the chat belongs to a project, that
   project's rules are shown above the chat rules.
-- **Prompt `+` shortcut**: on the home prompt, Instructions edits the selected project's rules
-  (Drafts shows a short note to start the chat first). In a chat it opens Settings.
-- **"+" panel menu**: Preview stays open. Code, Diff, Logs, Terminal and Settings can be added or
-  closed. The open set is stored per chat; `?tab=` is the active tab.
+- **Prompt `+` shortcut**: in a chat, Instructions opens Settings and Database opens the
+  Database panel. On the home prompt, Instructions edits the selected project's rules.
+- **"+" panel menu**: Preview stays open. Code, Diff, Logs, Terminal, Database and Settings can
+  be added or closed. The open set is stored per chat; `?tab=` is the active tab.
 - **Versions**: every agent reply is a version holding a full snapshot of the files. Any version
   can be **restored**, or **downloaded as a zip**.
 - **Design mode**: click an element in the preview to find it in the source and change it from a
@@ -124,6 +122,10 @@ tiers and more still planned).
 - **Environment variables**: secrets per chat, encrypted at rest with AES-256-GCM, written to the
   sandbox's `.env.local` and sent to Vercel on publish. The agent sees the variable names but
   never the values.
+- **Database**: one Postgres URL per chat (Neon, Supabase or any Postgres), stored encrypted.
+  Settings connects or disconnects it. The Database panel lists tables and columns (read-only).
+  The URL is injected as `DATABASE_URL` for the sandbox and publish. The agent sees table names
+  only, never the URL or rows.
 - **Share**: a read-only public link (`/share/[shareId]`) that can be revoked.
 - **Publish**: one click deploys the app to its own Vercel project at a permanent URL, with
   build-status tracking.
@@ -143,7 +145,7 @@ tiers and more still planned).
 - `ChatEnvVar`: encrypted environment variables.
 - `Usage`: the credit counter.
 
-The `Chat` table also holds sandbox, publish, share and GitHub state.
+The `Chat` table also holds sandbox, publish, share, GitHub and an encrypted database URL.
 `Project` and `Chat` each have optional `instructions` — standing rules the agent follows.
 
 ## 5. Scope
@@ -154,7 +156,7 @@ managing versions, and taking the app out of the platform: zip, GitHub, Vercel, 
 **Out of scope today:**
 - Teams, seats and shared workspaces.
 - Frameworks other than Next.js.
-- Backends or databases for the generated apps (only env vars are supported).
+- Backends other than a connected Postgres URL (no Neon OAuth, no row editor, no Upstash).
 - Other AI providers. The agent runs only on Gemini.
 - Real-time streaming. Progress is polled.
 - Mobile layout for the workspace.

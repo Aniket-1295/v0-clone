@@ -17,7 +17,7 @@ import {
   import { showActionError } from "@/lib/show-action-error";
   import { visibleActionError } from "@/lib/action-result";
   
-  const MessageContainer = ({ chatId, activeFragment, setActiveFragment, onFragmentOpen, onOpenInstructions }) => {
+  const MessageContainer = ({ chatId, activeFragment, setActiveFragment, onFragmentOpen, onOpenInstructions, onOpenDatabase }) => {
     const queryClient = useQueryClient();
     const bottomRef = useRef(null);
     const lastAssistantMessageIdRef = useRef(null);
@@ -89,7 +89,7 @@ import {
           </div>
           <div className="relative p-3 pt-1">
             <div className="absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-transparent to-background pointer-events-none" />
-            <MessageForm chatId={chatId} onOpenInstructions={onOpenInstructions}/>
+            <MessageForm chatId={chatId} onOpenInstructions={onOpenInstructions} onOpenDatabase={onOpenDatabase}/>
           </div>
         </div>
       );
@@ -150,7 +150,7 @@ import {
         <div className="relative p-3 pt-1">
              <div className="absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-transparent to-background pointer-events-none" />
              <div className="mx-auto max-w-3xl">
-               <MessageForm chatId={chatId} isGenerating={isLastMessageUser} onStop={onStop} isStopping={stop.isPending} onOpenInstructions={onOpenInstructions}/>
+               <MessageForm chatId={chatId} isGenerating={isLastMessageUser} onStop={onStop} isStopping={stop.isPending} onOpenInstructions={onOpenInstructions} onOpenDatabase={onOpenDatabase}/>
              </div>
         </div>
       </div>

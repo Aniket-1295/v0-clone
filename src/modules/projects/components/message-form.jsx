@@ -2,7 +2,7 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, ImagePlusIcon, ListChecksIcon, PlusIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, DatabaseIcon, ImagePlusIcon, ListChecksIcon, PlusIcon, SquareIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
@@ -42,7 +42,7 @@ const IMAGE_ONLY_PROMPT = "Recreate this design.";
 
 
 // While a generation runs (isGenerating) the send button becomes Stop.
-const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, onOpenInstructions}) => {
+const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, onOpenInstructions, onOpenDatabase}) => {
   const [isFocused, setIsFocused] = useState(false);
   const router = useRouter();
 
@@ -146,6 +146,9 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, 
               <DropdownMenuContent align="start" className="w-56">
                 <DropdownMenuItem onSelect={() => onOpenInstructions?.()}>
                   <ListChecksIcon className="size-4" /> Instructions
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onOpenDatabase?.()}>
+                  <DatabaseIcon className="size-4" /> Database
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={attachment.openPicker}>
                   <ImagePlusIcon className="size-4" /> Attach image

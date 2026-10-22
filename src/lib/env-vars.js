@@ -1,5 +1,6 @@
 import db from "@/lib/db";
 import { decryptSecret } from "@/lib/secrets";
+import { DATABASE_ENV_KEY } from "@/lib/database";
 
 // Chat environment variables, server-side only. Values are decrypted just before they are
 // written into a sandbox or sent to Vercel, and never returned to the browser.
@@ -11,14 +12,38 @@ export const MAX_ENV_VALUE_BYTES = 4 * 1024;
 // reach saved versions, zip downloads or shared pages.
 export const SANDBOX_ENV_PATH = "/home/user/.env.local";
 
-/** { KEY: value } for a chat. */
-export const getChatEnv = async (chatId) => {
-  const rows = await db.chatEnvVar.findMany({ where: { chatId }, orderBy: { key: "asc" } });
-  return Object.fromEntries(rows.map((row) => [row.key, decryptSecret(row.valueEncrypted)]));
+const connectedDatabaseUrl = async (chatId) => {
+  const chat = await db.chat.findFirst({
+    where: { id: chatId },
+    select: { databaseUrlEncrypted: true },
+  });
+  if (!chat?.databaseUrlEncrypted) return null;
+  try {
+    return decryptSecret(chat.databaseUrlEncrypted);
+  } catch {
+    return null;
+  }
 };
 
-export const getChatEnvKeys = async (chatId) =>
-  (await db.chatEnvVar.findMany({ where: { chatId }, orderBy: { key: "asc" }, select: { key: true } })).map((row) => row.key);
+/** { KEY: value } for a chat. A connected Database panel wins for DATABASE_URL. */
+export const getChatEnv = async (chatId) => {
+  const rows = await db.chatEnvVar.findMany({ where: { chatId }, orderBy: { key: "asc" } });
+  const env = Object.fromEntries(rows.map((row) => [row.key, decryptSecret(row.valueEncrypted)]));
+  const databaseUrl = await connectedDatabaseUrl(chatId);
+  if (databaseUrl) env[DATABASE_ENV_KEY] = databaseUrl;
+  return env;
+};
+
+export const getChatEnvKeys = async (chatId) => {
+  const keys = (
+    await db.chatEnvVar.findMany({ where: { chatId }, orderBy: { key: "asc" }, select: { key: true } })
+  ).map((row) => row.key);
+  if ((await connectedDatabaseUrl(chatId)) && !keys.includes(DATABASE_ENV_KEY)) {
+    keys.push(DATABASE_ENV_KEY);
+    keys.sort();
+  }
+  return keys;
+};
 
 /** .env file text; values are double-quoted with escapes so any characters survive. */
 export const toEnvFile = (env) =>

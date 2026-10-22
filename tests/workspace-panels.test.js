@@ -13,6 +13,7 @@ import {
 describe("parseTabParam", () => {
   it("accepts every known panel id", () => {
     expect(parseTabParam("settings")).toBe("settings");
+    expect(parseTabParam("database")).toBe("database");
     expect(parseTabParam("code")).toBe("code");
     expect(parseTabParam("terminal")).toBe("terminal");
   });
@@ -73,6 +74,7 @@ describe("closedPanels", () => {
       "diff",
       "logs",
       "terminal",
+      "database",
       "settings",
     ]);
   });

@@ -50,6 +50,7 @@ import DiffView from "./diff-view";
 import LogsView from "./logs-view";
 import TerminalView from "./terminal-view";
 import SettingsView from "./settings-view";
+import DatabaseView from "./database-view";
 import WorkspaceTabBar from "./workspace-tab-bar";
 import GithubReturnToasts from "./github-return-toasts";
 import { showActionError } from "@/lib/show-action-error";
@@ -314,6 +315,12 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState, openPanels
         </TabsContent>
       )}
 
+      {openPanels.includes("database") && (
+        <TabsContent value="database" className="min-h-0 flex-1">
+          <DatabaseView chatId={chatId} />
+        </TabsContent>
+      )}
+
       {openPanels.includes("settings") && (
         <TabsContent value="settings" className="min-h-0 flex-1">
           <SettingsView chatId={chatId} />
@@ -369,6 +376,7 @@ const ProjectView = ({ chatId, initialTab = "preview" }) => {
         setMobilePane("preview");
       }}
       onOpenInstructions={() => focusTab("settings")}
+      onOpenDatabase={() => focusTab("database")}
     />
   );
 

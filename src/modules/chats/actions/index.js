@@ -22,6 +22,13 @@ import { checkNoRunningGeneration } from "@/lib/generation-guard";
 import { encryptSecret, decryptSecret, isSecretsConfigured } from "@/lib/secrets";
 import { createRepository, isGithubConfigured, pushFiles, repoNameFor, revokeToken } from "@/lib/github";
 import { ENV_KEY_PATTERN, MAX_ENV_VALUE_BYTES, MAX_ENV_VARS, getChatEnv, maskValue } from "@/lib/env-vars";
+import {
+  DATABASE_ENV_KEY,
+  inspectDatabase,
+  parsePostgresUrl,
+  publicDatabase,
+  publicHost,
+} from "@/lib/database";
 import { createDeployment, getDeploymentState, isPublishConfigured, projectNameFor, syncProjectEnv } from "@/lib/vercel";
 import {
   connectSandbox,
@@ -696,6 +703,126 @@ export const deleteEnvVar = async (chatId, key) => {
   await db.chatEnvVar.deleteMany({ where: { chatId, key } });
   await syncChatEnvToSandbox(chatId);
   return ok({ key });
+};
+
+const databaseStatusFromUrl = (url) => ({
+  connected: true,
+  host: publicHost(url),
+  database: publicDatabase(url),
+});
+
+const upsertDatabaseEnv = async (chatId, url) => {
+  if ((await db.chatEnvVar.count({ where: { chatId } })) >= MAX_ENV_VARS) {
+    const existing = await db.chatEnvVar.findUnique({
+      where: { chatId_key: { chatId, key: DATABASE_ENV_KEY } },
+      select: { id: true },
+    });
+    if (!existing) return fail(ActionErrorCode.INTERNAL, `A chat can have at most ${MAX_ENV_VARS} variables.`);
+  }
+  await db.chatEnvVar.upsert({
+    where: { chatId_key: { chatId, key: DATABASE_ENV_KEY } },
+    create: { chatId, key: DATABASE_ENV_KEY, valueEncrypted: encryptSecret(url) },
+    update: { valueEncrypted: encryptSecret(url) },
+  });
+  return null;
+};
+
+/** Host and database name only. Never the connection URL. */
+export const getDatabaseStatus = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  try {
+    const chat = await db.chat.findFirst({
+      where: { id: chatId, userId: user.id },
+      select: { databaseUrlEncrypted: true },
+    });
+    if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+    if (!chat.databaseUrlEncrypted) return ok({ connected: false });
+    try {
+      return ok(databaseStatusFromUrl(decryptSecret(chat.databaseUrlEncrypted)));
+    } catch {
+      return ok({ connected: true, host: "", database: "" });
+    }
+  } catch (error) {
+    console.error("getDatabaseStatus failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not load the database.");
+  }
+};
+
+/** Saves a Postgres URL, checks it can connect, and syncs DATABASE_URL for the sandbox. */
+export const setDatabaseUrl = async (chatId, value) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  if (!(await ownChat(chatId, user.id))) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  if (!isSecretsConfigured()) {
+    return fail(ActionErrorCode.INTERNAL, "Environment variables are not set up yet (ENV_VARS_SECRET).");
+  }
+
+  const { url, error } = parsePostgresUrl(value);
+  if (error) return fail(ActionErrorCode.INVALID_INPUT, error);
+
+  try {
+    await inspectDatabase(url);
+  } catch (error) {
+    console.error("setDatabaseUrl inspect failed:", error);
+    return fail(ActionErrorCode.INVALID_INPUT, "Could not connect. Check the URL and that the database allows this host.");
+  }
+
+  try {
+    const envError = await upsertDatabaseEnv(chatId, url);
+    if (envError) return envError;
+    await db.chat.updateMany({
+      where: { id: chatId, userId: user.id },
+      data: { databaseUrlEncrypted: encryptSecret(url) },
+    });
+    await syncChatEnvToSandbox(chatId);
+    return ok(databaseStatusFromUrl(url));
+  } catch (error) {
+    console.error("setDatabaseUrl failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not save the database.");
+  }
+};
+
+export const disconnectDatabase = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+  if (!(await ownChat(chatId, user.id))) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  try {
+    await db.chat.updateMany({
+      where: { id: chatId, userId: user.id },
+      data: { databaseUrlEncrypted: null },
+    });
+    await db.chatEnvVar.deleteMany({ where: { chatId, key: DATABASE_ENV_KEY } });
+    await syncChatEnvToSandbox(chatId);
+    return ok({ connected: false });
+  } catch (error) {
+    console.error("disconnectDatabase failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not disconnect the database.");
+  }
+};
+
+/** Read-only table and column list. Never the URL. */
+export const listDatabaseSchema = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  try {
+    const chat = await db.chat.findFirst({
+      where: { id: chatId, userId: user.id },
+      select: { databaseUrlEncrypted: true },
+    });
+    if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+    if (!chat.databaseUrlEncrypted) {
+      return fail(ActionErrorCode.INVALID_INPUT, "Connect a database in Settings first.");
+    }
+    const { tables } = await inspectDatabase(decryptSecret(chat.databaseUrlEncrypted));
+    return ok({ tables });
+  } catch (error) {
+    console.error("listDatabaseSchema failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not read the database schema.");
+  }
 };
 
 /** Turns on design mode for the chat's preview: installs the selection helper in its sandbox. */

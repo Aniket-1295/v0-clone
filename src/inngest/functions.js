@@ -10,6 +10,7 @@ import { closeRunningSteps, describeCall, finishStep, startStep } from "./progre
 import { checkApp, routesToCheck } from "./check-app";
 import { getChatEnvKeys } from "@/lib/env-vars";
 import { buildInstructionsNote, loadChatInstructions } from "@/lib/instructions";
+import { buildDatabaseNote, loadChatDatabaseNote } from "@/lib/database";
 
 import  db  from "@/lib/db";
 import { refundCredits } from "@/lib/usage";
@@ -217,7 +218,8 @@ export const codeAgentFunction = inngest.createFunction(
     const hasImage = history.some((turn) => turn.attachmentIds?.length);
     const envKeys = await step.run("get-env-names", () => getChatEnvKeys(chatId));
     const rules = await step.run("get-instructions", () => loadChatInstructions(db, chatId));
-    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}${images ? `\n${IMAGES_NOTE}` : ""}\n${envNote(envKeys)}${buildInstructionsNote(rules)}`;
+    const schema = await step.run("get-database-schema", () => loadChatDatabaseNote(db, chatId));
+    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}${images ? `\n${IMAGES_NOTE}` : ""}\n${envNote(envKeys)}${buildInstructionsNote(rules)}${buildDatabaseNote(schema)}`;
     const writtenFiles = {};
     let summary = "";
     // The last summary, kept in case the turn budget runs out while fixing an error.

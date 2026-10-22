@@ -1,6 +1,6 @@
 "use client";
 
-import { Code, EyeIcon, GitCompareIcon, PlusIcon, ScrollTextIcon, SettingsIcon, TerminalIcon, XIcon } from "lucide-react";
+import { Code, DatabaseIcon, EyeIcon, GitCompareIcon, PlusIcon, ScrollTextIcon, SettingsIcon, TerminalIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ const ICONS = {
   diff: GitCompareIcon,
   logs: ScrollTextIcon,
   terminal: TerminalIcon,
+  database: DatabaseIcon,
   settings: SettingsIcon,
 };
 
