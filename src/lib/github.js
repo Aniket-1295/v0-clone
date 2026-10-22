@@ -122,3 +122,54 @@ export const pushFiles = async (token, { repo, branch, files, message }) => {
   });
   return commit.sha;
 };
+
+/** The user's repositories (own, collaborator, organization), most recently pushed first. */
+export const listRepositories = async (token) => {
+  const repos = await github(token, "/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member");
+  return repos.map((repo) => ({
+    fullName: repo.full_name,
+    private: repo.private,
+    defaultBranch: repo.default_branch || "main",
+    description: repo.description || "",
+    pushedAt: repo.pushed_at,
+  }));
+};
+
+/** Branch names of a repository ("owner/name"). */
+export const listBranches = async (token, repo) => {
+  const branches = await github(token, `/repos/${repo}/branches?per_page=100`);
+  return branches.map((branch) => branch.name);
+};
+
+/**
+ * Downloads a branch of a repository as a zip (one request; GitHub redirects to a signed
+ * codeload URL). Refuses archives over `maxBytes`. Returns the bytes as a Uint8Array.
+ */
+export const downloadZipball = async (token, repo, branch, maxBytes) => {
+  const response = await fetch(`${API}/repos/${repo}/zipball/${encodeURIComponent(branch)}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+  });
+  if (!response.ok) {
+    const error = new Error(`GitHub API error ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  const declared = Number(response.headers.get("content-length"));
+  if (declared && declared > maxBytes) throw Object.assign(new Error("Repository is too large to import."), { tooLarge: true });
+
+  // Read with a running cap: codeload often streams without a content-length.
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.length;
+    if (size > maxBytes) throw Object.assign(new Error("Repository is too large to import."), { tooLarge: true });
+    chunks.push(chunk);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+};

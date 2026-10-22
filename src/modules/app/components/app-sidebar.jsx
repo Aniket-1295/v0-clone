@@ -12,6 +12,7 @@ import {
   CrownIcon,
   FolderIcon,
   FolderPlusIcon,
+  GithubIcon,
   HomeIcon,
   LayoutTemplateIcon,
   ListFilterIcon,
@@ -126,6 +127,9 @@ const NewChatButton = () => {
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/templates"><LayoutTemplateIcon className="size-4" /> From Template</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/import"><GithubIcon className="size-4" /> Import from GitHub</Link>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

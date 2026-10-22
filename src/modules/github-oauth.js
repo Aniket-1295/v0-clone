@@ -10,5 +10,11 @@ export const originOf = (request) => {
 
 export const callbackUrl = (request) => `${originOf(request)}/api/github/callback`;
 
-/** Only same-app chat pages are allowed as the place to return to. */
-export const safeReturnPath = (chatId) => (chatId && /^[a-z0-9]+$/i.test(chatId) ? `/chat/${chatId}` : "/");
+// Where "Connect GitHub" was started from when it was not a chat.
+export const IMPORT_RETURN = "import";
+
+/** Only same-app pages are allowed as the place to return to: a chat, or the import page. */
+export const safeReturnPath = (target) => {
+  if (target === IMPORT_RETURN) return "/import";
+  return target && /^[a-z0-9]+$/i.test(target) ? `/chat/${target}` : "/";
+};
