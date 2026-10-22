@@ -368,6 +368,7 @@ const ProjectView = ({ chatId, initialTab = "preview" }) => {
         setTabState("preview");
         setMobilePane("preview");
       }}
+      onOpenInstructions={() => focusTab("settings")}
     />
   );
 

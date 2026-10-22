@@ -13,11 +13,13 @@ import {
   ImagePlusIcon,
   InboxIcon,
   LayoutTemplateIcon,
+  ListChecksIcon,
   MicIcon,
   PlusIcon,
   SparklesIcon,
   SquareIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -27,6 +29,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Hint } from "@/components/ui/hint";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -36,7 +45,8 @@ import { useImageAttachment } from "@/hooks/use-image-attachment";
 import { ImageAttachmentPreview } from "@/components/image-attachment-preview";
 import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
 import { useCreateChat } from "@/modules/chats/hooks/chat";
-import { useGetProjects } from "@/modules/projects/hooks/project";
+import { useGetProjectById, useGetProjects } from "@/modules/projects/hooks/project";
+import InstructionsSection from "@/modules/projects/components/instructions-section";
 import { useAppShell } from "./app-shell";
 
 // Sent when the user attaches an image without typing anything.
@@ -58,7 +68,9 @@ export default function AppPrompt({ initialProjectId = null }) {
   const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
   const [projectId, setProjectId] = useState(initialProjectId);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
   const { data: projects } = useGetProjects();
+  const { data: projectDetail } = useGetProjectById(projectId, { enabled: instructionsOpen && !!projectId });
   const createChat = useCreateChat();
   const speech = useSpeechInput({ getBase: () => value, onText: setValue });
   const project = projects?.find((p) => p.id === projectId);
@@ -67,6 +79,14 @@ export default function AppPrompt({ initialProjectId = null }) {
   const tooLong = isPromptTooLong(value);
   const hasContent = hasText || !!attachment.image;
   const canSend = hasContent && !attachment.processing && !tooLong;
+
+  const openInstructions = () => {
+    if (!projectId) {
+      toast.info("Start the chat, then set instructions in Settings.");
+      return;
+    }
+    setInstructionsOpen(true);
+  };
 
   const submit = async () => {
     if (!canSend || createChat.isPending) return;
@@ -114,6 +134,9 @@ export default function AppPrompt({ initialProjectId = null }) {
             <PlusIcon className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem onSelect={openInstructions}>
+              <ListChecksIcon className="size-4" /> Instructions
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={attachment.openPicker}>
               <ImagePlusIcon className="size-4" /> Attach image
             </DropdownMenuItem>
@@ -201,6 +224,26 @@ export default function AppPrompt({ initialProjectId = null }) {
           )}
         </div>
       </div>
+
+      <Dialog open={instructionsOpen} onOpenChange={setInstructionsOpen}>
+        <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Project instructions</DialogTitle>
+            <DialogDescription>Rules for every chat in this project.</DialogDescription>
+          </DialogHeader>
+          {projectId && (
+            <div className="overflow-hidden rounded-lg">
+              <InstructionsSection
+                scope="project"
+                id={projectId}
+                value={projectDetail?.instructions ?? ""}
+                title="Project instructions"
+                description={`Rules for every chat in ${project?.name ?? "this project"}.`}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

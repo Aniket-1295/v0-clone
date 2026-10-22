@@ -16,7 +16,7 @@ import {
   import { useRestoreVersion } from "@/modules/chats/hooks/chat";
   import { showActionError } from "@/lib/show-action-error";
   
-  const MessageContainer = ({ chatId, activeFragment, setActiveFragment, onFragmentOpen }) => {
+  const MessageContainer = ({ chatId, activeFragment, setActiveFragment, onFragmentOpen, onOpenInstructions }) => {
     const queryClient = useQueryClient();
     const bottomRef = useRef(null);
     const lastAssistantMessageIdRef = useRef(null);
@@ -88,7 +88,7 @@ import {
           </div>
           <div className="relative p-3 pt-1">
             <div className="absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-transparent to-background pointer-events-none" />
-            <MessageForm chatId={chatId}/>
+            <MessageForm chatId={chatId} onOpenInstructions={onOpenInstructions}/>
           </div>
         </div>
       );
@@ -149,7 +149,7 @@ import {
         <div className="relative p-3 pt-1">
              <div className="absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-transparent to-background pointer-events-none" />
              <div className="mx-auto max-w-3xl">
-               <MessageForm chatId={chatId} isGenerating={isLastMessageUser} onStop={onStop} isStopping={stop.isPending}/>
+               <MessageForm chatId={chatId} isGenerating={isLastMessageUser} onStop={onStop} isStopping={stop.isPending} onOpenInstructions={onOpenInstructions}/>
              </div>
         </div>
       </div>

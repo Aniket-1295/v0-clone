@@ -39,6 +39,8 @@ model Project {
   userId String
   user User @relation(fields: [userId] , references: [id] , onDelete: Cascade)
   starred Boolean @default(false)
+  // Standing rules the agent follows for every chat in this project.
+  instructions String?
   createdAt DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -71,6 +73,8 @@ model Chat {
   githubBranch            String?
   githubPushedFragmentId  String?
   githubPushedAt          DateTime?
+  // Standing rules for this chat only; override project instructions when they conflict.
+  instructions String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

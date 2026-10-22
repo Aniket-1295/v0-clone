@@ -23,6 +23,7 @@ import {
   setEnvVar,
   shareChat,
   unshareChat,
+  updateChatInstructions,
   wakeChatSandbox,
 } from "../actions";
 
@@ -62,6 +63,20 @@ export const useCreateChat = () => useChatMutation(createChat);
 export const useCreateChatFromTemplate = () => useChatMutation(createChatFromTemplate);
 /** mutateAsync([chatId, title]) */
 export const useRenameChat = () => useChatMutation(renameChat);
+
+/** mutateAsync([chatId, instructions]) — standing rules for this chat. */
+export const useUpdateChatInstructions = (chatId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (instructions) => unwrap(await updateChatInstructions(chatId, instructions)),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["chats", "one", chatId], (prev) =>
+        prev ? { ...prev, instructions: data.instructions } : prev
+      );
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+    },
+  });
+};
 /** mutateAsync([chatId, projectId|null]) */
 export const useMoveChat = () => useChatMutation(moveChat);
 /** mutateAsync([chatId]) */

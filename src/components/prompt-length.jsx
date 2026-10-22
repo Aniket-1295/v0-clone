@@ -1,21 +1,23 @@
 import { cn } from "@/lib/utils";
 import { MAX_PROMPT_LENGTH } from "@/lib/generation-limits";
 
-// Shown once a prompt nears the limit; red when it is over and cannot be sent.
-const SHOW_FROM = MAX_PROMPT_LENGTH * 0.8;
+/**
+ * Character counter near a limit. Shown from 80% of `max` (default: the prompt
+ * limit); turns red when over. Use a different `max` for Instructions.
+ */
+export const isPromptTooLong = (text, max = MAX_PROMPT_LENGTH) => text.trim().length > max;
 
-export const isPromptTooLong = (text) => text.trim().length > MAX_PROMPT_LENGTH;
-
-export function PromptLength({ text, className }) {
+export function PromptLength({ text, className, max = MAX_PROMPT_LENGTH }) {
   const length = text.trim().length;
-  if (length < SHOW_FROM) return null;
+  const showFrom = max * 0.8;
+  if (length < showFrom) return null;
 
   return (
     <span
       aria-live="polite"
-      className={cn("text-xs tabular-nums text-muted-foreground", length > MAX_PROMPT_LENGTH && "text-red-500", className)}
+      className={cn("text-xs tabular-nums text-muted-foreground", length > max && "text-red-500", className)}
     >
-      {length.toLocaleString("en-US")} / {MAX_PROMPT_LENGTH.toLocaleString("en-US")}
+      {length.toLocaleString("en-US")} / {max.toLocaleString("en-US")}
     </span>
   );
 }
