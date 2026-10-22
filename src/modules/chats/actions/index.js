@@ -14,6 +14,7 @@ import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
 import { validatePrompt } from "@/lib/generation-limits";
+import { validateInstructions } from "@/lib/instructions";
 import { APP_LOG_FILE, APP_LOG_LINES } from "@/lib/app-logs";
 import { TERMINAL_CWD, TERMINAL_TIMEOUT_MS, clampOutput, validateCommand } from "@/lib/terminal";
 import { checkNoRunningGeneration } from "@/lib/generation-guard";
@@ -46,6 +47,13 @@ const CHAT_LIST_SELECT = {
   updatedAt: true,
   projectId: true,
   project: { select: { id: true, name: true } },
+};
+
+const CHAT_DETAIL_SELECT = {
+  ...CHAT_LIST_SELECT,
+  shareId: true,
+  instructions: true,
+  project: { select: { id: true, name: true, instructions: true } },
 };
 
 /**
@@ -130,11 +138,26 @@ export const getChat = async (chatId) => {
 
   const chat = await db.chat.findFirst({
     where: { id: chatId, userId: user.id },
-    select: { ...CHAT_LIST_SELECT, shareId: true },
+    select: CHAT_DETAIL_SELECT,
   });
 
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
   return ok(chat);
+};
+
+/** Standing rules for this chat. Empty string clears them. Applies on the next generation. */
+export const updateChatInstructions = async (chatId, value) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const { instructions, error } = validateInstructions(value);
+  if (error) return fail(ActionErrorCode.INVALID_INPUT, error);
+
+  const { count } = await db.chat.updateMany({
+    where: { id: chatId, userId: user.id },
+    data: { instructions: instructions || null },
+  });
+  return count ? ok({ id: chatId, instructions: instructions || null }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 };
 
 export const renameChat = async (chatId, title) => {

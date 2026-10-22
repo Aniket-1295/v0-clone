@@ -13,6 +13,7 @@ import TemplateThumbnail from "@/modules/templates/components/template-thumbnail
 import ChatActions from "@/modules/chats/components/chat-actions";
 import { useGetProjectById, useStarProject } from "../hooks/project";
 import ProjectActions from "./project-actions";
+import InstructionsSection from "./instructions-section";
 
 export default function ProjectDetail({ projectId }) {
   const router = useRouter();
@@ -66,6 +67,16 @@ export default function ProjectDetail({ projectId }) {
           </Button>
         </div>
       </div>
+
+      <section className="mt-10 overflow-hidden rounded-xl border bg-card dark:bg-neutral-950">
+        <InstructionsSection
+          scope="project"
+          id={project.id}
+          value={project.instructions ?? ""}
+          title="Instructions"
+          description="These rules apply to every chat in this project. A chat can override them in its Settings."
+        />
+      </section>
 
       <section className="mt-10 overflow-hidden rounded-xl border bg-card dark:bg-neutral-950">
         <h2 className="border-b px-5 py-3.5 font-medium">Production Deployment</h2>

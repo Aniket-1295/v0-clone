@@ -2,7 +2,7 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, ImagePlusIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, ImagePlusIcon, ListChecksIcon, PlusIcon, SquareIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
@@ -19,7 +19,12 @@ import { Usage } from "@/modules/usage/components/usage";
 import { showActionError } from "@/lib/show-action-error";
 import { useImageAttachment } from "@/hooks/use-image-attachment";
 import { ImageAttachmentPreview } from "@/components/image-attachment-preview";
-import { Hint } from "@/components/ui/hint";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MAX_PROMPT_LENGTH } from "@/lib/generation-limits";
 import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
 
@@ -34,7 +39,7 @@ const IMAGE_ONLY_PROMPT = "Recreate this design.";
 
 
 // While a generation runs (isGenerating) the send button becomes Stop.
-const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false}) => {
+const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, onOpenInstructions}) => {
   const [isFocused, setIsFocused] = useState(false);
   const router = useRouter();
 
@@ -122,17 +127,26 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
          />
 
          <div className="flex gap-x-2 items-center justify-between pt-2">
-            <Hint text="Attach an image" side="top">
-              <button
-                type="button"
-                onClick={attachment.openPicker}
-                disabled={isPending}
-                aria-label="Attach an image"
-                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 cursor-pointer"
-              >
-                <ImagePlusIcon className="size-4" />
-              </button>
-            </Hint>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  aria-label="Add"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 cursor-pointer"
+                >
+                  <PlusIcon className="size-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem onSelect={() => onOpenInstructions?.()}>
+                  <ListChecksIcon className="size-4" /> Instructions
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={attachment.openPicker}>
+                  <ImagePlusIcon className="size-4" /> Attach image
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-1.5">
               <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
                 <span>&#8984;</span>Enter

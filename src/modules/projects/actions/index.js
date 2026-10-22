@@ -3,6 +3,7 @@
 import db from "@/lib/db";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
+import { validateInstructions } from "@/lib/instructions";
 import { MessageType } from "@prisma/client";
 
 const UNAUTHORIZED = () => fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
@@ -75,6 +76,23 @@ export const renameProject = async (projectId, name) => {
 
   const { count } = await db.project.updateMany({ where: { id: projectId, userId: user.id }, data: { name: trimmed.slice(0, 80) } });
   return count ? ok({ id: projectId }) : fail(ActionErrorCode.NOT_FOUND, "Project not found.");
+};
+
+/** Standing rules for every chat in this project. Empty string clears them. */
+export const updateProjectInstructions = async (projectId, value) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const { instructions, error } = validateInstructions(value);
+  if (error) return fail(ActionErrorCode.INVALID_INPUT, error);
+
+  const { count } = await db.project.updateMany({
+    where: { id: projectId, userId: user.id },
+    data: { instructions: instructions || null },
+  });
+  return count
+    ? ok({ id: projectId, instructions: instructions || null })
+    : fail(ActionErrorCode.NOT_FOUND, "Project not found.");
 };
 
 export const setProjectStarred = async (projectId, starred) => {

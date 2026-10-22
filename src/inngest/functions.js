@@ -8,6 +8,7 @@ import { CODE_AGENT_TOOLS, runTool } from "./tools";
 import { closeRunningSteps, describeCall, finishStep, startStep } from "./progress";
 import { checkApp, routesToCheck } from "./check-app";
 import { getChatEnvKeys } from "@/lib/env-vars";
+import { buildInstructionsNote, loadChatInstructions } from "@/lib/instructions";
 
 import  db  from "@/lib/db";
 import { refundCredits } from "@/lib/usage";
@@ -201,7 +202,8 @@ export const codeAgentFunction = inngest.createFunction(
     const contents = toContents(history);
     const hasImage = history.some((turn) => turn.attachmentIds?.length);
     const envKeys = await step.run("get-env-names", () => getChatEnvKeys(chatId));
-    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}\n${envNote(envKeys)}`;
+    const rules = await step.run("get-instructions", () => loadChatInstructions(db, chatId));
+    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}\n${envNote(envKeys)}${buildInstructionsNote(rules)}`;
     const writtenFiles = {};
     let summary = "";
     // The last summary, kept in case the turn budget runs out while fixing an error.

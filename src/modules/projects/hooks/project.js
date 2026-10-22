@@ -7,6 +7,7 @@ import {
   getProjects,
   renameProject,
   setProjectStarred,
+  updateProjectInstructions,
 } from "../actions";
 
 export const useGetProjects = ({ enabled = true } = {}) =>
@@ -43,3 +44,18 @@ export const useRenameProject = () => useProjectMutation(renameProject);
 export const useStarProject = () => useProjectMutation(setProjectStarred);
 /** mutateAsync([projectId]) */
 export const useDeleteProject = () => useProjectMutation(deleteProject);
+
+/** mutateAsync(instructions) — standing rules for every chat in this project. */
+export const useUpdateProjectInstructions = (projectId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (instructions) => unwrap(await updateProjectInstructions(projectId, instructions)),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["projects", projectId], (prev) =>
+        prev ? { ...prev, instructions: data.instructions } : prev
+      );
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+    },
+  });
+};
