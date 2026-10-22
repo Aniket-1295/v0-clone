@@ -7,6 +7,7 @@ import {
   CircleSlashIcon,
   FilePenLineIcon,
   FileTextIcon,
+  ImageIcon,
   ScanSearchIcon,
   SparklesIcon,
   SquareTerminalIcon,
@@ -21,6 +22,7 @@ const KIND_ICONS = {
   write: FilePenLineIcon,
   command: SquareTerminalIcon,
   check: ScanSearchIcon,
+  image: ImageIcon,
   finish: SparklesIcon,
 };
 

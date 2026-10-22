@@ -49,6 +49,8 @@ import { useGetProjectById, useGetProjects } from "@/modules/projects/hooks/proj
 import InstructionsSection from "@/modules/projects/components/instructions-section";
 import { useAppShell } from "./app-shell";
 import ModelPicker, { useModelTier } from "./model-picker";
+import { GenerateImagesChip, GenerateImagesMenuItem } from "./generate-images-toggle";
+import { useGenerateImages } from "@/hooks/use-stored-preference";
 
 // Sent when the user attaches an image without typing anything.
 const IMAGE_ONLY_PROMPT = "Recreate this design.";
@@ -71,6 +73,7 @@ export default function AppPrompt({ initialProjectId = null }) {
   const { data: projectDetail } = useGetProjectById(projectId, { enabled: instructionsOpen && !!projectId });
   const createChat = useCreateChat();
   const { tier } = useModelTier();
+  const [generateImages] = useGenerateImages();
   const speech = useSpeechInput({ getBase: () => value, onText: setValue });
   const project = projects?.find((p) => p.id === projectId);
   const attachment = useImageAttachment();
@@ -90,7 +93,7 @@ export default function AppPrompt({ initialProjectId = null }) {
   const submit = async () => {
     if (!canSend || createChat.isPending) return;
     try {
-      const chat = await createChat.mutateAsync([value.trim() || IMAGE_ONLY_PROMPT, projectId, attachment.image, tier.id]);
+      const chat = await createChat.mutateAsync([value.trim() || IMAGE_ONLY_PROMPT, projectId, attachment.image, tier.id, generateImages]);
       router.push(`/chat/${chat.id}`);
     } catch (error) {
       showActionError(error, router, "Failed to start the chat");
@@ -139,6 +142,7 @@ export default function AppPrompt({ initialProjectId = null }) {
             <DropdownMenuItem onSelect={attachment.openPicker}>
               <ImagePlusIcon className="size-4" /> Attach image
             </DropdownMenuItem>
+            <GenerateImagesMenuItem />
             <DropdownMenuItem asChild>
               <Link href="/templates"><LayoutTemplateIcon className="size-4" /> Start from a template</Link>
             </DropdownMenuItem>
@@ -152,6 +156,7 @@ export default function AppPrompt({ initialProjectId = null }) {
         </DropdownMenu>
 
         <ModelPicker className={ghostButton} />
+        <GenerateImagesChip />
 
         <div className="ml-auto flex items-center gap-1.5">
           <PromptLength text={value} className="mr-1" />

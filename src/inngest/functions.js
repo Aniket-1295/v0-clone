@@ -4,7 +4,8 @@ import Sandbox from "@e2b/code-interpreter";
 import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
 import { buildFollowUpContext } from "./utils";
 import { generateText, runGeminiTurn, textOf, tierModels } from "./gemini";
-import { CODE_AGENT_TOOLS, runTool } from "./tools";
+import { agentTools, runTool } from "./tools";
+import { MAX_IMAGES_PER_RUN } from "@/lib/generated-images";
 import { closeRunningSteps, describeCall, finishStep, startStep } from "./progress";
 import { checkApp, routesToCheck } from "./check-app";
 import { getChatEnvKeys } from "@/lib/env-vars";
@@ -40,6 +41,11 @@ Work efficiently:
 const IMAGE_NOTE = `
 The user attached an image of a design (a screenshot or mockup). Recreate it as closely as you can: its layout, sections, colours, typography, spacing and components, built with Tailwind and shadcn/ui. Use the text you can read in it; where content is unreadable, use realistic placeholder content.
 Build only what the image shows, in app/page.tsx plus a few components if needed: do not add sections, pages, modals or features that are not in the image, and do not install packages (Tailwind, shadcn/ui and lucide-react are enough).`;
+// Sent with the system prompt when the user turned on "Generate images".
+const IMAGES_NOTE = `
+You can create images with the generateImage tool (at most ${MAX_IMAGES_PER_RUN} in this task). Use it where real imagery makes the app better: hero images, product shots, illustrations, backgrounds, avatars. Do not use it for icons (use lucide-react) or for logos and images with text in them.
+Write a detailed prompt (subject, style, colours, lighting) and pick the aspect ratio that fits the layout. Use the returned URL in a plain <img src="..." alt="..." /> with suitable classes (for example className="h-full w-full object-cover"), not next/image. Keep using images generated earlier in this chat (their URLs are in the code) instead of generating them again. Never use image URLs from the web (Unsplash or any other site); only URLs that generateImage returned.`;
+
 // Environment variables: the agent learns the names, never the values.
 const envNote = (keys) =>
   keys.length
@@ -138,6 +144,9 @@ export const codeAgentFunction = inngest.createFunction(
     const chatId = event.data.chatId ?? event.data.projectId;
     // Events sent before model tiers carry no tier: they ran on Mini.
     const tier = getTier(event.data.tier);
+    // The user turned on "Generate images" for this prompt.
+    const images = !!event.data.images;
+    const tools = agentTools({ images });
     const { models, primary, thinkingLevel } = tierModels(tier.id);
 
     // The prompt this run answers (the latest message); progress steps hang off it.
@@ -208,7 +217,7 @@ export const codeAgentFunction = inngest.createFunction(
     const hasImage = history.some((turn) => turn.attachmentIds?.length);
     const envKeys = await step.run("get-env-names", () => getChatEnvKeys(chatId));
     const rules = await step.run("get-instructions", () => loadChatInstructions(db, chatId));
-    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}\n${envNote(envKeys)}${buildInstructionsNote(rules)}`;
+    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}${images ? `\n${IMAGES_NOTE}` : ""}\n${envNote(envKeys)}${buildInstructionsNote(rules)}`;
     const writtenFiles = {};
     let summary = "";
     // The last summary, kept in case the turn budget runs out while fixing an error.
@@ -219,6 +228,10 @@ export const codeAgentFunction = inngest.createFunction(
     let currentModel;
     // Max only: some turn ran on the Flash fallback because Max's models were unavailable.
     let fellBack = false;
+    // generateImage calls left; 0 once the image models turn out to be unavailable.
+    let imagesLeft = images ? MAX_IMAGES_PER_RUN : 0;
+    // The image models had no quota: the reply says the app uses placeholders.
+    let imagesUnavailable = false;
 
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
       const { content, model } = await step.run(`gemini-turn-${turn}`, async () => {
@@ -226,7 +239,7 @@ export const codeAgentFunction = inngest.createFunction(
         const result = await runGeminiTurn({
           system,
           contents: await withImages(contents),
-          tools: CODE_AGENT_TOOLS,
+          tools,
           models,
           thinkingLevel,
           preferredModel: currentModel,
@@ -280,12 +293,25 @@ export const codeAgentFunction = inngest.createFunction(
         const { part, writtenFiles: written } = await step.run(`tool-${turn}-${index}-${call.name}`, async () => {
           const key = `tool-${turn}-${index}`;
           await start(key, describeCall(call));
-          const result = await runTool(call, sandboxId);
-          await finish(key, result.part.functionResponse.response?.error ? "error" : "done");
+          const result = await runTool(call, sandboxId, { chatId, images, imagesLeft });
+          const failed = !!result.part.functionResponse.response?.error;
+          // "Generating an image: ..." becomes "Generated" or "Could not generate", keeping the prompt.
+          const imageLabel = call.name === "generateImage"
+            ? describeCall(call).label.replace("Generating an image", failed ? "Could not generate an image" : "Generated an image")
+            : undefined;
+          await finish(key, failed ? "error" : "done", imageLabel);
           return result;
         });
         Object.assign(writtenFiles, written);
         responses.push(part);
+        if (call.name === "generateImage") {
+          const response = part.functionResponse.response;
+          if (response?.output?.url) imagesLeft--;
+          else if (/unavailable/i.test(response?.error ?? "")) {
+            imagesLeft = 0;
+            imagesUnavailable = true;
+          } else if (/limit/i.test(response?.error ?? "")) imagesLeft = 0;
+        }
       }
       contents.push({ role: "user", parts: responses });
     }
@@ -320,6 +346,9 @@ export const codeAgentFunction = inngest.createFunction(
 
     // Max fell back to Flash: it is charged the fallback tier's price.
     const fallbackTier = getTier(MAX_FALLBACK_TIER_ID);
+    const imagesNote = imagesUnavailable
+      ? "\n\n> Images could not be generated right now (the image model is unavailable), so the app uses placeholders. Ask me to add images later."
+      : "";
     const fallbackNote = fellBack
       ? `\n\n> ${tier.name} was unavailable, so this ran on ${fallbackTier.name}. You were charged ${creditsLabel(fallbackTier.credits)} instead of ${creditsLabel(tier.credits)}.`
       : "";
@@ -353,7 +382,7 @@ export const codeAgentFunction = inngest.createFunction(
           chatId,
           content:(response || "Here you go") + (remainingError
             ? `\n\n> The preview still shows an error I could not fix. Ask me to fix it:\n> ${remainingError.split("\n").slice(0, 3).join(" ").slice(0, 200)}`
-            : "") + fallbackNote,
+            : "") + imagesNote + fallbackNote,
           role:MessageRole.ASSISTANT,
           type:MessageType.RESULT,
           fragments:{

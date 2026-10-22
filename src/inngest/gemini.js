@@ -78,9 +78,35 @@ const contentsFor = (contents, model) =>
   }));
 
 /**
+ * Calls `request(model)` for each model in `order`, skipping any that are out of quota or
+ * busy, and returns the first answer with its model. Other errors are thrown at once.
+ */
+const withModelRotation = async (order, request) => {
+  let lastError;
+
+  for (const model of order) {
+    if ((exhaustedUntil.get(model) ?? 0) > Date.now()) continue;
+    try {
+      return { model, response: await request(model) };
+    } catch (error) {
+      if (isQuotaError(error)) exhaustedUntil.set(model, Date.now() + retryAfterMs(error));
+      else if (isBusyError(error)) exhaustedUntil.set(model, Date.now() + BUSY_SKIP_MS);
+      else throw error;
+      lastError = error;
+    }
+  }
+
+  // Every model is out of quota or busy.
+  throw Object.assign(lastError ?? new Error("Every Gemini model is busy or out of quota. Try again later."), {
+    unavailable: true,
+  });
+};
+
+/**
  * One model turn, trying `models` in order (starting with `preferredModel` if given) and
  * skipping any that are out of quota or busy. Returns the model's content exactly as received,
  * tagged with the model that produced it (its thought signatures must be replayed as-is).
+ * When every model is out of quota or busy, the step fails and Inngest retries it later.
  */
 export const runGeminiTurn = async ({
   system,
@@ -91,36 +117,47 @@ export const runGeminiTurn = async ({
   preferredModel,
 }) => {
   const order = preferredModel ? [preferredModel, ...models.filter((m) => m !== preferredModel)] : models;
-  let lastError;
+  const { model, response } = await withModelRotation(order, (model) =>
+    getClient().models.generateContent({
+      model,
+      contents: contentsFor(contents, model),
+      config: {
+        systemInstruction: system,
+        thinkingConfig: { thinkingLevel },
+        ...(tools ? { tools: [{ functionDeclarations: tools }] } : {}),
+      },
+    })
+  );
+  const candidate = response.candidates?.[0];
+  return {
+    model,
+    content: { ...(candidate?.content ?? { role: "model", parts: [] }), producedBy: model },
+    finishReason: candidate?.finishReason ?? null,
+  };
+};
 
-  for (const model of order) {
-    if ((exhaustedUntil.get(model) ?? 0) > Date.now()) continue;
-    try {
-      const response = await getClient().models.generateContent({
-        model,
-        contents: contentsFor(contents, model),
-        config: {
-          systemInstruction: system,
-          thinkingConfig: { thinkingLevel },
-          ...(tools ? { tools: [{ functionDeclarations: tools }] } : {}),
-        },
-      });
-      const candidate = response.candidates?.[0];
-      return {
-        model,
-        content: { ...(candidate?.content ?? { role: "model", parts: [] }), producedBy: model },
-        finishReason: candidate?.finishReason ?? null,
-      };
-    } catch (error) {
-      if (isQuotaError(error)) exhaustedUntil.set(model, Date.now() + retryAfterMs(error));
-      else if (isBusyError(error)) exhaustedUntil.set(model, Date.now() + BUSY_SKIP_MS);
-      else throw error;
-      lastError = error;
-    }
-  }
+// Image models for the generateImage tool (they need a paid key). Override with GEMINI_IMAGE_MODELS.
+const DEFAULT_IMAGE_MODELS = ["gemini-3.1-flash-image", "gemini-2.5-flash-image"];
+const IMAGE_MODELS = parseList(process.env.GEMINI_IMAGE_MODELS).length
+  ? parseList(process.env.GEMINI_IMAGE_MODELS)
+  : DEFAULT_IMAGE_MODELS;
 
-  // Every model is out of quota or busy: the step fails and Inngest retries it later.
-  throw lastError ?? new Error("Every Gemini model is busy or out of quota. Try again later.");
+/**
+ * One image from a text prompt: { model, mimeType, data } with `data` as base64. Throws an
+ * error with `unavailable` when every image model is out of quota or busy, and a plain
+ * error when the model answers without an image (for example, a refused prompt).
+ */
+export const generateImage = async ({ prompt, aspectRatio }) => {
+  const { model, response } = await withModelRotation(IMAGE_MODELS, (model) =>
+    getClient().models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio } },
+    })
+  );
+  const image = response.candidates?.[0]?.content?.parts?.find((part) => part.inlineData?.data)?.inlineData;
+  if (!image) throw new Error("The image model returned no image for this prompt.");
+  return { model, mimeType: image.mimeType, data: image.data };
 };
 
 export const textOf = (content) =>

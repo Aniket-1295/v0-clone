@@ -17,6 +17,10 @@ export const describeCall = ({ name, args = {} }) => {
       return { kind: "read", label: `Read ${listNames(args.files ?? []) || "files"}` };
     case "createOrUpdateFiles":
       return { kind: "write", label: `Wrote ${listNames((args.files ?? []).map((file) => file.path)) || "files"}` };
+    case "generateImage": {
+      const prompt = String(args.prompt ?? "").trim();
+      return { kind: "image", label: `Generating an image: ${prompt.length > 60 ? `${prompt.slice(0, 57)}...` : prompt}` };
+    }
     case "terminal": {
       const command = String(args.command ?? "").trim();
       return { kind: "command", label: `Ran ${command.length > 80 ? `${command.slice(0, 77)}...` : command}` };

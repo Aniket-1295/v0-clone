@@ -59,9 +59,10 @@ const CHAT_DETAIL_SELECT = {
 /**
  * Starts a chat from a prompt, in a project or as a draft, and kicks off generation.
  * `image` ({ mimeType, data: base64 }) is an optional screenshot or mockup to recreate.
- * `tierId` is the model tier (see src/lib/model-tiers.js); Mini when omitted.
+ * `tierId` is the model tier (see src/lib/model-tiers.js); Mini when omitted. `images` lets the
+ * agent generate images for the app.
  */
-export const createChat = async (value, projectId = null, image = null, tierId = null) => {
+export const createChat = async (value, projectId = null, image = null, tierId = null, images = false) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
@@ -109,7 +110,7 @@ export const createChat = async (value, projectId = null, image = null, tierId =
 
     await inngest.send({
       name: "code-agent/run",
-      data: { value: prompt, chatId: chat.id, userId: user.clerkId, tier: tier.id },
+      data: { value: prompt, chatId: chat.id, userId: user.clerkId, tier: tier.id, images: images === true },
     });
 
     return ok(chat);
