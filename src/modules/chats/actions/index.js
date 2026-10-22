@@ -15,6 +15,7 @@ import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
 import { validatePrompt } from "@/lib/generation-limits";
 import { validateInstructions } from "@/lib/instructions";
+import { copyTitle } from "@/lib/chat-copy";
 import { APP_LOG_FILE, APP_LOG_LINES } from "@/lib/app-logs";
 import { TERMINAL_CWD, TERMINAL_TIMEOUT_MS, clampOutput, validateCommand } from "@/lib/terminal";
 import { checkNoRunningGeneration } from "@/lib/generation-guard";
@@ -46,6 +47,7 @@ const CHAT_LIST_SELECT = {
   createdAt: true,
   updatedAt: true,
   projectId: true,
+  starred: true,
   project: { select: { id: true, name: true } },
 };
 
@@ -131,7 +133,8 @@ export const getChats = async (scope = "all") => {
 
   const chats = await db.chat.findMany({
     where,
-    orderBy: { updatedAt: "desc" },
+    // Favorites first, then most recently updated.
+    orderBy: [{ starred: "desc" }, { updatedAt: "desc" }],
     select: CHAT_LIST_SELECT,
   });
 
@@ -189,6 +192,72 @@ export const moveChat = async (chatId, projectId) => {
 
   const { count } = await db.chat.updateMany({ where: { id: chatId, userId: user.id }, data: { projectId } });
   return count ? ok({ id: chatId }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+};
+
+/** Adds the chat to favorites (listed first) or removes it. */
+export const setChatStarred = async (chatId, starred) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const { count } = await db.chat.updateMany({ where: { id: chatId, userId: user.id }, data: { starred: !!starred } });
+  return count ? ok({ id: chatId, starred: !!starred }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+};
+
+/**
+ * Copies a chat into a new one in the same project: its latest version (as the copy's only
+ * version), instructions and environment variables. No AI run, no credit used. The copy gets
+ * its own sandbox, built from that version when its page opens. Sharing, publishing and
+ * GitHub links stay with the original.
+ */
+export const duplicateChat = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const source = await db.chat.findFirst({
+    where: { id: chatId, userId: user.id },
+    select: { title: true, projectId: true, instructions: true, envVars: { select: { key: true, valueEncrypted: true } } },
+  });
+  if (!source) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  const latest = await getLatestFragment(chatId);
+  if (!latest) return fail(ActionErrorCode.INVALID_INPUT, "This chat has no version to copy yet.");
+
+  try {
+    const chat = await db.chat.create({
+      data: {
+        title: copyTitle(source.title),
+        userId: user.id,
+        projectId: source.projectId,
+        instructions: source.instructions,
+        envVars: { create: source.envVars },
+      },
+    });
+
+    // Created one after the other so the chat shows them in this order.
+    await db.message.create({
+      data: { chatId: chat.id, content: `Duplicated from "${source.title}".`, role: MessageRole.USER, type: MessageType.RESULT },
+    });
+    await db.message.create({
+      data: {
+        chatId: chat.id,
+        content: `This is a copy of **${source.title}** at its latest version. Ask me for any change you want.`,
+        role: MessageRole.ASSISTANT,
+        type: MessageType.RESULT,
+        // The original's preview URL until this chat's own sandbox is built (template
+        // chats keep previewing the hosted template page).
+        fragments: { create: { sandboxUrl: latest.sandboxUrl, title: latest.title, files: latest.files } },
+      },
+    });
+
+    if (source.projectId) {
+      await db.project.update({ where: { id: source.projectId }, data: { updatedAt: new Date() } });
+    }
+
+    return ok(chat);
+  } catch (error) {
+    console.error("duplicateChat failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not duplicate this chat. Please try again.");
+  }
 };
 
 export const deleteChat = async (chatId) => {

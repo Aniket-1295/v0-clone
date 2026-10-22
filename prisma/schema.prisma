@@ -75,6 +75,8 @@ model Chat {
   githubPushedAt          DateTime?
   // Standing rules for this chat only; override project instructions when they conflict.
   instructions String?
+  // Favorites are listed first.
+  starred Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

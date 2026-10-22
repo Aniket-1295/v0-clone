@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckIcon, ChevronDownIcon, FolderIcon, InboxIcon, MessageSquareIcon, MessageSquarePlusIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, FolderIcon, InboxIcon, MessageSquareIcon, MessageSquarePlusIcon, SearchIcon, StarIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -94,8 +94,9 @@ export default function ChatsPage({ initialScope = "all" }) {
             {visible.map((chat) => (
               <li key={chat.id} onClick={() => router.push(`/chat/${chat.id}`)} className="flex cursor-pointer items-center gap-3 px-4 py-3.5 hover:bg-accent/50">
                 <MessageSquareIcon className="size-4 shrink-0 text-muted-foreground" />
-                <Link href={`/chat/${chat.id}`} onClick={(e) => e.stopPropagation()} className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {chat.title}
+                <Link href={`/chat/${chat.id}`} onClick={(e) => e.stopPropagation()} className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+                  <span className="truncate">{chat.title}</span>
+                  {chat.starred && <StarIcon aria-label="Favorite" className="size-3.5 shrink-0 fill-current text-amber-500" />}
                 </Link>
                 <span className="hidden max-w-48 items-center gap-1.5 truncate text-sm text-muted-foreground sm:flex">
                   {chat.project ? <FolderIcon className="size-3.5 shrink-0" /> : <InboxIcon className="size-3.5 shrink-0" />}

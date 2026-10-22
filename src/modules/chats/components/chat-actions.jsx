@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FolderIcon, FolderInputIcon, InboxIcon, MoreHorizontalIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { CopyIcon, FolderIcon, FolderInputIcon, InboxIcon, MoreHorizontalIcon, PencilIcon, StarIcon, StarOffIcon, Trash2Icon } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -21,9 +21,9 @@ import { showActionError } from "@/lib/show-action-error";
 import { useGetProjects } from "@/modules/projects/hooks/project";
 import RenameDialog from "@/modules/app/components/rename-dialog";
 import ConfirmDialog from "@/modules/app/components/confirm-dialog";
-import { useDeleteChat, useMoveChat, useRenameChat } from "../hooks/chat";
+import { useDeleteChat, useDuplicateChat, useMoveChat, useRenameChat, useStarChat } from "../hooks/chat";
 
-/** The "..." menu for a chat: rename, move to a project or drafts, delete. */
+/** The "..." menu for a chat: rename, favorite, duplicate, move to a project or drafts, delete. */
 export default function ChatActions({ chat, className, align = "end" }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,6 +32,18 @@ export default function ChatActions({ chat, className, align = "end" }) {
   const rename = useRenameChat();
   const move = useMoveChat();
   const remove = useDeleteChat();
+  const star = useStarChat();
+  const duplicate = useDuplicateChat();
+
+  const duplicateAndOpen = async () => {
+    try {
+      const copy = await duplicate.mutateAsync([chat.id]);
+      toast.success("Chat duplicated");
+      router.push(`/chat/${copy.id}`);
+    } catch (error) {
+      showActionError(error, router);
+    }
+  };
 
   const run = async (promise, success) => {
     try {
@@ -55,6 +67,13 @@ export default function ChatActions({ chat, className, align = "end" }) {
         <DropdownMenuContent align={align} className="w-48" onClick={(e) => e.stopPropagation()}>
           <DropdownMenuItem onSelect={() => setDialog("rename")}>
             <PencilIcon className="size-4" /> Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => run(star.mutateAsync([chat.id, !chat.starred]), chat.starred ? "Removed from favorites" : "Added to favorites")}>
+            {chat.starred ? <StarOffIcon className="size-4" /> : <StarIcon className="size-4" />}
+            {chat.starred ? "Unfavorite" : "Favorite"}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={duplicate.isPending} onSelect={duplicateAndOpen}>
+            <CopyIcon className="size-4" /> Duplicate
           </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="gap-2">

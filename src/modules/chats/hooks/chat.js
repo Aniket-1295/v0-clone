@@ -5,6 +5,7 @@ import {
   createChatFromTemplate,
   deleteChat,
   deleteEnvVar,
+  duplicateChat,
   disconnectGithub,
   enableDesignMode,
   getAppLogs,
@@ -18,6 +19,7 @@ import {
   pushToGithub,
   renameChat,
   restoreVersion,
+  setChatStarred,
   runTerminalCommand,
   saveCodeEdits,
   setEnvVar,
@@ -63,6 +65,10 @@ export const useCreateChat = () => useChatMutation(createChat);
 export const useCreateChatFromTemplate = () => useChatMutation(createChatFromTemplate);
 /** mutateAsync([chatId, title]) */
 export const useRenameChat = () => useChatMutation(renameChat);
+/** mutateAsync([chatId, starred]) */
+export const useStarChat = () => useChatMutation(setChatStarred);
+/** mutateAsync([chatId]); resolves to the new chat. */
+export const useDuplicateChat = () => useChatMutation(duplicateChat);
 
 /** mutateAsync([chatId, instructions]) — standing rules for this chat. */
 export const useUpdateChatInstructions = (chatId) => {

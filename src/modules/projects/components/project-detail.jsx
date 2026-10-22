@@ -131,7 +131,10 @@ export default function ProjectDetail({ projectId }) {
             {chats.slice(0, 8).map((chat) => (
               <li key={chat.id} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50">
                 <MessageSquareIcon className="size-4 text-muted-foreground" />
-                <Link href={`/chat/${chat.id}`} className="min-w-0 flex-1 truncate text-sm">{chat.title}</Link>
+                <Link href={`/chat/${chat.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+                  <span className="truncate">{chat.title}</span>
+                  {chat.starred && <StarIcon aria-label="Favorite" className="size-3.5 shrink-0 fill-current text-amber-500" />}
+                </Link>
                 <span className="text-sm text-muted-foreground">{timeAgo(chat.updatedAt)}</span>
                 <ChatActions chat={chat} />
               </li>
