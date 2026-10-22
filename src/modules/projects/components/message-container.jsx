@@ -15,6 +15,7 @@ import {
   import { toast } from "sonner";
   import { useRestoreVersion } from "@/modules/chats/hooks/chat";
   import { showActionError } from "@/lib/show-action-error";
+  import { visibleActionError } from "@/lib/action-result";
   
   const MessageContainer = ({ chatId, activeFragment, setActiveFragment, onFragmentOpen, onOpenInstructions }) => {
     const queryClient = useQueryClient();
@@ -75,7 +76,7 @@ import {
     if (isError) {
       return (
         <div className="flex items-center justify-center h-full text-red-500">
-          Error: {error?.message || "Failed to load messages"}
+          Error: {visibleActionError(error, "Could not load this chat. Refresh or try again.")}
         </div>
       );
     }

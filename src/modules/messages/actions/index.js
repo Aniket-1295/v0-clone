@@ -84,18 +84,23 @@ export const getMessages = async (chatId) => {
 
   if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
 
-  const chat = await findOwnChat(chatId, user.id);
+  try {
+    const chat = await findOwnChat(chatId, user.id);
 
-  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+    if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
-  const messages = await db.message.findMany({
-    where: { chatId },
-    orderBy: { updatedAt: "asc" },
-    // Attachment bytes are served separately by /api/attachments/[id].
-    include: { fragments: true, attachments: { select: { id: true, mimeType: true } } },
-  });
+    const messages = await db.message.findMany({
+      where: { chatId },
+      orderBy: { updatedAt: "asc" },
+      // Attachment bytes are served separately by /api/attachments/[id].
+      include: { fragments: true, attachments: { select: { id: true, mimeType: true } } },
+    });
 
-  return ok(messages);
+    return ok(messages);
+  } catch (error) {
+    console.error("getMessages failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not load messages.");
+  }
 };
 
 /** Progress steps of the chat's agent runs, oldest first (no file contents). */
@@ -103,16 +108,21 @@ export const getAgentSteps = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
 
-  const chat = await findOwnChat(chatId, user.id);
-  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  try {
+    const chat = await findOwnChat(chatId, user.id);
+    if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
-  const steps = await db.agentStep.findMany({
-    where: { chatId },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, promptId: true, kind: true, label: true, status: true, createdAt: true, updatedAt: true },
-  });
+    const steps = await db.agentStep.findMany({
+      where: { chatId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, promptId: true, kind: true, label: true, status: true, createdAt: true, updatedAt: true },
+    });
 
-  return ok(steps);
+    return ok(steps);
+  } catch (error) {
+    console.error("getAgentSteps failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not load progress.");
+  }
 };
 
 /**

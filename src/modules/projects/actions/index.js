@@ -29,13 +29,18 @@ export const getProjects = async () => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const projects = await db.project.findMany({
-    where: { userId: user.id },
-    orderBy: [{ starred: "desc" }, { updatedAt: "desc" }],
-    include: { _count: { select: { chats: true } } },
-  });
+  try {
+    const projects = await db.project.findMany({
+      where: { userId: user.id },
+      orderBy: [{ starred: "desc" }, { updatedAt: "desc" }],
+      include: { _count: { select: { chats: true } } },
+    });
 
-  return ok(projects);
+    return ok(projects);
+  } catch (error) {
+    console.error("getProjects failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not load projects.");
+  }
 };
 
 /** A project with its recent chats and its latest generated version. */
@@ -43,28 +48,33 @@ export const getProjectById = async (projectId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const project = await db.project.findFirst({
-    where: { id: projectId, userId: user.id },
-    include: {
-      chats: { orderBy: { updatedAt: "desc" }, select: { id: true, title: true, updatedAt: true } },
-    },
-  });
+  try {
+    const project = await db.project.findFirst({
+      where: { id: projectId, userId: user.id },
+      include: {
+        chats: { orderBy: { updatedAt: "desc" }, select: { id: true, title: true, updatedAt: true } },
+      },
+    });
 
-  if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
+    if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
 
-  const latestVersion = await db.fragment.findFirst({
-    where: { message: { type: MessageType.RESULT, chat: { projectId } } },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      title: true,
-      sandboxUrl: true,
-      createdAt: true,
-      message: { select: { chatId: true } },
-    },
-  });
+    const latestVersion = await db.fragment.findFirst({
+      where: { message: { type: MessageType.RESULT, chat: { projectId } } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        sandboxUrl: true,
+        createdAt: true,
+        message: { select: { chatId: true } },
+      },
+    });
 
-  return ok({ ...project, latestVersion });
+    return ok({ ...project, latestVersion });
+  } catch (error) {
+    console.error("getProjectById failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not load the project.");
+  }
 };
 
 export const renameProject = async (projectId, name) => {

@@ -31,3 +31,14 @@ export const unwrap = (result) => {
   error.code = result?.code || ActionErrorCode.INTERNAL;
   throw error;
 };
+
+/** Next.js replaces thrown server-action errors with this digest text in production. */
+export const isMaskedNextError = (message) =>
+  typeof message === "string" && message.includes("Server Components render");
+
+/** Safe text for the UI: never show a Next.js production digest. */
+export const visibleActionError = (error, fallback) => {
+  const message = error?.message || "";
+  if (!message || isMaskedNextError(message)) return fallback;
+  return message;
+};
