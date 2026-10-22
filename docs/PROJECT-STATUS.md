@@ -202,7 +202,7 @@ Optional variables:
 - `INNGEST_DEV`, `INNGEST_BASE_URL` (local Inngest dev server)
 - `VERCEL_TOKEN`, `VERCEL_TEAM_ID` (Publish)
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` (Push to GitHub)
-- `GEMINI_MODELS`, `GEMINI_THINKING_LEVEL` (model overrides)
+- `GEMINI_MODELS`, `GEMINI_THINKING_LEVEL` (Mini / Pro model overrides), `GEMINI_MAX_MODELS` (Max tier; default `gemini-3.1-pro-preview`, needs a paid Gemini key)
 - `CLERK_WEBHOOK_SIGNING_SECRET` (user-sync webhook; onboarding falls back to lazy creation without it)
 - `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, and `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` (error monitoring + source maps)
 - `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPPORT_EMAIL` (canonical URL for metadata/sitemap; support email on legal pages)

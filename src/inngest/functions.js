@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import Sandbox from "@e2b/code-interpreter";
 import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
 import { buildFollowUpContext } from "./utils";
-import { generateText, runGeminiTurn, textOf } from "./gemini";
+import { generateText, runGeminiTurn, textOf, tierModels } from "./gemini";
 import { CODE_AGENT_TOOLS, runTool } from "./tools";
 import { closeRunningSteps, describeCall, finishStep, startStep } from "./progress";
 import { checkApp, routesToCheck } from "./check-app";
@@ -12,6 +12,7 @@ import { buildInstructionsNote, loadChatInstructions } from "@/lib/instructions"
 
 import  db  from "@/lib/db";
 import { refundCredits } from "@/lib/usage";
+import { MAX_FALLBACK_TIER_ID, creditsLabel, getTier, refundNote } from "@/lib/model-tiers";
 
 import {
   getLatestFragment,
@@ -97,9 +98,10 @@ export const codeAgentFunction = inngest.createFunction(
     concurrency: [{ key: "event.data.userId", limit: 1 }],
     // The Stop button (stopGeneration) sends this; the run ends at its next step.
     cancelOn: [{ event: "code-agent/cancel", if: "async.data.chatId == event.data.chatId" }],
-    // Runs once all retries are exhausted: unblock the UI and give the credit back.
+    // Runs once all retries are exhausted: unblock the UI and give the credits back.
     onFailure: async ({ event, step }) => {
-      const { chatId, projectId, userId } = event.data.event.data;
+      const { chatId, projectId, userId, tier } = event.data.event.data;
+      const { credits } = getTier(tier);
 
       // Inngest catches the run's error, so Sentry would never see it otherwise.
       await step.run("report-error", async () => {
@@ -116,7 +118,7 @@ export const codeAgentFunction = inngest.createFunction(
             // Events sent before projects held chats carry projectId; the migration gave
             // each such project a chat with the same id.
             chatId: chatId ?? projectId,
-            content: "Generation failed. Your credit has been refunded.",
+            content: `Generation failed. ${refundNote(credits)}`,
             role: MessageRole.ASSISTANT,
             type: MessageType.ERROR,
           },
@@ -125,7 +127,7 @@ export const codeAgentFunction = inngest.createFunction(
 
       if (userId) {
         await step.run("refund-credit", async () => {
-          return await refundCredits(userId);
+          return await refundCredits(userId, credits);
         });
       }
     },
@@ -134,6 +136,9 @@ export const codeAgentFunction = inngest.createFunction(
 
   async ({ event, step, runId }) => {
     const chatId = event.data.chatId ?? event.data.projectId;
+    // Events sent before model tiers carry no tier: they ran on Mini.
+    const tier = getTier(event.data.tier);
+    const { models, primary, thinkingLevel } = tierModels(tier.id);
 
     // The prompt this run answers (the latest message); progress steps hang off it.
     const promptId = await step.run("find-prompt", async () => {
@@ -212,6 +217,8 @@ export const codeAgentFunction = inngest.createFunction(
     let remainingError = null;
     // Stay on the model that answered last; switch only when its quota runs out.
     let currentModel;
+    // Max only: some turn ran on the Flash fallback because Max's models were unavailable.
+    let fellBack = false;
 
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
       const { content, model } = await step.run(`gemini-turn-${turn}`, async () => {
@@ -220,12 +227,15 @@ export const codeAgentFunction = inngest.createFunction(
           system,
           contents: await withImages(contents),
           tools: CODE_AGENT_TOOLS,
+          models,
+          thinkingLevel,
           preferredModel: currentModel,
         });
         await finish(`turn-${turn}`);
         return result;
       });
       currentModel = model;
+      fellBack ||= !primary.includes(model);
       contents.push(content);
 
       const calls = (content.parts ?? []).filter((part) => part.functionCall).map((part) => part.functionCall);
@@ -299,14 +309,20 @@ export const codeAgentFunction = inngest.createFunction(
       return getSandboxUrl(sandbox);
     });
 
-    // The run finished without a usable result: give the credit back, like onFailure does.
+    // The run finished without a usable result: give the credits back, like onFailure does.
     if (isError && event.data.userId) {
       await step.run("refund-credit-on-error", async () => {
         // A stopped run was already refunded by stopGeneration.
         if (await wasStopped()) return null;
-        return await refundCredits(event.data.userId);
+        return await refundCredits(event.data.userId, tier.credits);
       });
     }
+
+    // Max fell back to Flash: it is charged the fallback tier's price.
+    const fallbackTier = getTier(MAX_FALLBACK_TIER_ID);
+    const fallbackNote = fellBack
+      ? `\n\n> ${tier.name} was unavailable, so this ran on ${fallbackTier.name}. You were charged ${creditsLabel(fallbackTier.credits)} instead of ${creditsLabel(tier.credits)}.`
+      : "";
 
     await step.run("save-result" , async()=>{
       if (await wasStopped()) return null;
@@ -320,7 +336,7 @@ export const codeAgentFunction = inngest.createFunction(
           data:{
             chatId,
             content:event.data.userId
-              ? "Something went wrong. Please try again. Your credit has been refunded."
+              ? `Something went wrong. Please try again. ${refundNote(tier.credits)}`
               : "Something went wrong. Please try again",
             role:MessageRole.ASSISTANT,
             type:MessageType.ERROR
@@ -337,7 +353,7 @@ export const codeAgentFunction = inngest.createFunction(
           chatId,
           content:(response || "Here you go") + (remainingError
             ? `\n\n> The preview still shows an error I could not fix. Ask me to fix it:\n> ${remainingError.split("\n").slice(0, 3).join(" ").slice(0, 200)}`
-            : ""),
+            : "") + fallbackNote,
           role:MessageRole.ASSISTANT,
           type:MessageType.RESULT,
           fragments:{
@@ -351,6 +367,14 @@ export const codeAgentFunction = inngest.createFunction(
         }
       })
     })
+
+    // Last, so a failure in an earlier step cannot refund the run twice (onFailure refunds it all).
+    if (fellBack && !isError && event.data.userId) {
+      await step.run("refund-fallback-difference", async () => {
+        if (await wasStopped()) return null;
+        return await refundCredits(event.data.userId, tier.credits - fallbackTier.credits);
+      });
+    }
 
     return {
       url: sandboxUrl,
