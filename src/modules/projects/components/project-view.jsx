@@ -6,7 +6,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import ProjectHeader from "./project-header";
@@ -19,6 +19,7 @@ import {
   DownloadIcon,
   ExternalLink,
   EyeIcon,
+  GitCompareIcon,
   MessageSquare,
   MonitorIcon,
   RefreshCcw,
@@ -35,6 +36,7 @@ import { MessageRole } from "@prisma/client";
 import { useEnableDesignMode, useGetChat, useKeepSandboxAlive, useSaveCodeEdits } from "@/modules/chats/hooks/chat";
 import { useCreateMessages, useGetMessages } from "@/modules/messages/hooks/message";
 import DesignPanel from "./design-panel";
+import DiffView from "./diff-view";
 import { showActionError } from "@/lib/show-action-error";
 import PublishButton from "./publish-button";
 import ShareButton from "./share-button";
@@ -78,6 +80,7 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
   const latestFragmentId = messages?.findLast((message) => message.fragments)?.fragments.id;
   const generating = messages?.at(-1)?.role === MessageRole.USER;
   const isLatest = !!activeFragment && activeFragment.id === latestFragmentId;
+  const versions = useMemo(() => messages?.flatMap((message) => (message.fragments ? [message.fragments] : [])) ?? [], [messages]);
   const readOnlyReason = !isLatest ? "Older version: restore it to edit." : generating ? "Editing is paused while v0 works." : null;
 
   const onSaveEdits = async (edits) => {
@@ -180,6 +183,10 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
           <TabsTrigger value="code" className="h-7 px-2.5 gap-1.5 text-xs">
             <Code className="size-3.5" />
             Code
+          </TabsTrigger>
+          <TabsTrigger value="diff" className="h-7 px-2.5 gap-1.5 text-xs">
+            <GitCompareIcon className="size-3.5" />
+            Diff
           </TabsTrigger>
         </TabsList>
 
@@ -285,6 +292,10 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
         ) : (
           <EmptyPane icon={Code} text="Generated code will appear here" />
         )}
+      </TabsContent>
+
+      <TabsContent value="diff" className="min-h-0 flex-1">
+        <DiffView versions={versions} activeFragment={activeFragment} />
       </TabsContent>
     </Tabs>
   );
