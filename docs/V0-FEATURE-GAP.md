@@ -30,7 +30,7 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | Skills | ❌ | Reusable prompt packs; can follow Instructions |
 | MCPs | ❌ | Connect tools to the agent; large, later |
 | Auto Permissions | ⛔ | Specific to v0's agent; not needed for ours |
-| **Model picker: Mini / Pro / Max** | 🟡 | Picker exists with one model; add tiers mapped to Gemini models and plans |
+| **Model picker: Mini / Pro / Max** | 🟡 | Mini 1 credit, Pro 2 (high thinking), Max 4 (Gemini 3.1 Pro, Pro plan) — PR open |
 | "Use your ChatGPT plan in v0" | ⛔ | Vercel–OpenAI partnership |
 
 ## 3. Starting work (New Chat menu, home)
@@ -69,7 +69,7 @@ Ordered by value to users and how much existing code each one reuses.
 4. ✅ **Settings panel + "+" panel menu**: one place for env vars, GitHub, sharing, publishing; add/close panels like v0. (PR #48, merged)
 5. ✅ **Instructions**: per-project and per-chat rules for the agent. (PR #49, merged)
 6. ✅ **Import from GitHub**: start a chat from an existing repository. (PR #50, merged)
-7. **Model tiers**: Mini / Pro / Max mapped to Gemini models, limited by plan, with credit costs.
+7. 🟡 **Model tiers**: Mini / Pro / Max mapped to Gemini models, limited by plan, with credit costs. (`feat/model-tiers`)
 8. **Generate Images**: the agent can create images for the app.
 9. **Small polish**: star and duplicate chats, project search in the picker, "Worked for Xs", credits in the sidebar.
 10. **Database**: connect Neon / Supabase, browse tables.
