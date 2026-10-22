@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time-ago";
 import { showActionError } from "@/lib/show-action-error";
+import { visibleActionError } from "@/lib/action-result";
 import TemplateThumbnail from "@/modules/templates/components/template-thumbnail";
 import ChatActions from "@/modules/chats/components/chat-actions";
 import { useGetProjectById, useStarProject } from "../hooks/project";
@@ -23,7 +24,7 @@ export default function ProjectDetail({ projectId }) {
   if (error) {
     return (
       <div className="mx-auto max-w-5xl px-6 py-24 text-center">
-        <p className="text-muted-foreground">{error.message}</p>
+        <p className="text-muted-foreground">{visibleActionError(error, "Could not load this project. Refresh or try again.")}</p>
         <Button asChild variant="outline" className="mt-4"><Link href="/projects">Back to projects</Link></Button>
       </div>
     );

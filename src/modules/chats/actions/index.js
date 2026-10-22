@@ -131,27 +131,37 @@ export const getChats = async (scope = "all") => {
   if (scope === "drafts") where.projectId = null;
   else if (scope !== "all") where.projectId = scope;
 
-  const chats = await db.chat.findMany({
-    where,
-    // Favorites first, then most recently updated.
-    orderBy: [{ starred: "desc" }, { updatedAt: "desc" }],
-    select: CHAT_LIST_SELECT,
-  });
+  try {
+    const chats = await db.chat.findMany({
+      where,
+      // Favorites first, then most recently updated.
+      orderBy: [{ starred: "desc" }, { updatedAt: "desc" }],
+      select: CHAT_LIST_SELECT,
+    });
 
-  return ok(chats);
+    return ok(chats);
+  } catch (error) {
+    console.error("getChats failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not load chats.");
+  }
 };
 
 export const getChat = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const chat = await db.chat.findFirst({
-    where: { id: chatId, userId: user.id },
-    select: CHAT_DETAIL_SELECT,
-  });
+  try {
+    const chat = await db.chat.findFirst({
+      where: { id: chatId, userId: user.id },
+      select: CHAT_DETAIL_SELECT,
+    });
 
-  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
-  return ok(chat);
+    if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+    return ok(chat);
+  } catch (error) {
+    console.error("getChat failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not load the chat.");
+  }
 };
 
 /** Standing rules for this chat. Empty string clears them. Applies on the next generation. */
