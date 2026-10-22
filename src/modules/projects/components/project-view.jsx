@@ -23,6 +23,7 @@ import {
   MessageSquare,
   MonitorIcon,
   RefreshCcw,
+  ScrollTextIcon,
 } from "lucide-react";
 import FragmentWeb from "./fragment-web";
 import { FileExplorer } from "./file-explorer";
@@ -37,6 +38,7 @@ import { useEnableDesignMode, useGetChat, useKeepSandboxAlive, useSaveCodeEdits 
 import { useCreateMessages, useGetMessages } from "@/modules/messages/hooks/message";
 import DesignPanel from "./design-panel";
 import DiffView from "./diff-view";
+import LogsView from "./logs-view";
 import { showActionError } from "@/lib/show-action-error";
 import PublishButton from "./publish-button";
 import ShareButton from "./share-button";
@@ -188,6 +190,10 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
             <GitCompareIcon className="size-3.5" />
             Diff
           </TabsTrigger>
+          <TabsTrigger value="logs" className="h-7 px-2.5 gap-1.5 text-xs">
+            <ScrollTextIcon className="size-3.5" />
+            Logs
+          </TabsTrigger>
         </TabsList>
 
         {tabState === "preview" && sandboxUrl && (
@@ -296,6 +302,10 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
 
       <TabsContent value="diff" className="min-h-0 flex-1">
         <DiffView versions={versions} activeFragment={activeFragment} />
+      </TabsContent>
+
+      <TabsContent value="logs" className="min-h-0 flex-1">
+        <LogsView chatId={chatId} active={tabState === "logs"} />
       </TabsContent>
     </Tabs>
   );

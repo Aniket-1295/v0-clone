@@ -7,6 +7,7 @@ import {
   deleteEnvVar,
   disconnectGithub,
   enableDesignMode,
+  getAppLogs,
   getChat,
   getChats,
   getGithubStatus,
@@ -25,6 +26,7 @@ import {
 } from "../actions";
 
 const KEEP_ALIVE_INTERVAL_MS = 2 * 60 * 1000;
+const LOGS_INTERVAL_MS = 3000;
 
 /** scope: "all", "drafts" or a project id. */
 export const useGetChats = (scope = "all", { enabled = true } = {}) =>
@@ -189,3 +191,13 @@ export const useKeepSandboxAlive = (chatId) => {
     retry: false,
   });
 };
+
+/** The dev-server log of the chat's sandbox, refreshed every few seconds while `enabled`. */
+export const useAppLogs = (chatId, { enabled = true } = {}) =>
+  useQuery({
+    queryKey: ["app-logs", chatId],
+    queryFn: async () => unwrap(await getAppLogs(chatId)),
+    enabled: !!chatId && enabled,
+    refetchInterval: enabled ? LOGS_INTERVAL_MS : false,
+    retry: false,
+  });

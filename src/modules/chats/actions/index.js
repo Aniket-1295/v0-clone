@@ -14,6 +14,7 @@ import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
 import { validatePrompt } from "@/lib/generation-limits";
+import { APP_LOG_FILE, APP_LOG_LINES } from "@/lib/app-logs";
 import { checkNoRunningGeneration } from "@/lib/generation-guard";
 import { encryptSecret, decryptSecret, isSecretsConfigured } from "@/lib/secrets";
 import { createRepository, isGithubConfigured, pushFiles, repoNameFor, revokeToken } from "@/lib/github";
@@ -249,6 +250,37 @@ export const wakeChatSandbox = async (chatId) => {
   } catch (error) {
     console.error("wakeChatSandbox failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Could not start the preview. Please refresh.");
+  }
+};
+
+/**
+ * The last lines of the dev-server log in the chat's sandbox (server output and the
+ * preview's browser console), for the Logs panel. Never starts or rebuilds a sandbox:
+ * returns { state: "none" } when the chat has no sandbox of its own (no version yet, or a
+ * template served by this app), { state: "asleep" } when it has expired, else
+ * { state: "ok", text }.
+ */
+export const getAppLogs = async (chatId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { sandboxId: true } });
+  if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  const fragment = await getLatestFragment(chatId);
+  if (!chat.sandboxId || !fragment || isHostedPreview(fragment)) return ok({ state: "none" });
+
+  try {
+    const sandbox = await connectSandbox(chat.sandboxId);
+    if (!sandbox) return ok({ state: "asleep" });
+
+    const { stdout } = await sandbox.commands.run(`tail -n ${APP_LOG_LINES} ${APP_LOG_FILE} 2>/dev/null || true`, {
+      timeoutMs: 10_000,
+    });
+    return ok({ state: "ok", text: stdout });
+  } catch (error) {
+    console.error("getAppLogs failed:", error);
+    return fail(ActionErrorCode.INTERNAL, "Could not read the logs. Please try again.");
   }
 };
 
