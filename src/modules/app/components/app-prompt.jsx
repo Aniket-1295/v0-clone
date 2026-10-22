@@ -17,6 +17,7 @@ import {
   ListChecksIcon,
   MicIcon,
   PlusIcon,
+  SearchIcon,
   SquareIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -69,6 +70,7 @@ export default function AppPrompt({ initialProjectId = null }) {
   const [focused, setFocused] = useState(false);
   const [projectId, setProjectId] = useState(initialProjectId);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [projectQuery, setProjectQuery] = useState("");
   const { data: projects } = useGetProjects();
   const { data: projectDetail } = useGetProjectById(projectId, { enabled: instructionsOpen && !!projectId });
   const createChat = useCreateChat();
@@ -76,6 +78,8 @@ export default function AppPrompt({ initialProjectId = null }) {
   const [generateImages] = useGenerateImages();
   const speech = useSpeechInput({ getBase: () => value, onText: setValue });
   const project = projects?.find((p) => p.id === projectId);
+  const query = projectQuery.trim().toLowerCase();
+  const matchingProjects = query ? projects?.filter((p) => p.name.toLowerCase().includes(query)) : projects;
   const attachment = useImageAttachment();
   const hasText = value.trim().length > 0;
   const tooLong = isPromptTooLong(value);
@@ -160,19 +164,39 @@ export default function AppPrompt({ initialProjectId = null }) {
 
         <div className="ml-auto flex items-center gap-1.5">
           <PromptLength text={value} className="mr-1" />
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={(open) => !open && setProjectQuery("")}>
             <DropdownMenuTrigger className={cn(ghostButton, "max-w-44")}>
               <span className="truncate">{project ? project.name : "Project"}</span>
               <ChevronDownIcon className="size-3.5 shrink-0" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-80 w-56 overflow-y-auto">
               <DropdownMenuLabel className="text-xs text-muted-foreground">Start the chat in</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => setProjectId(null)}>
-                <InboxIcon className="size-4" /> No project (Drafts)
-                {!projectId && <CheckIcon className="ml-auto size-4" />}
-              </DropdownMenuItem>
-              {projects?.length > 0 && <DropdownMenuSeparator />}
-              {projects?.map((p) => (
+              {projects?.length > 0 && (
+                <div className="flex items-center gap-2 border-b px-2 pb-1.5">
+                  <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                  <input
+                    autoFocus
+                    value={projectQuery}
+                    onChange={(e) => setProjectQuery(e.target.value)}
+                    // Keep typing in the box: the menu would treat letters as type-ahead.
+                    onKeyDown={(e) => e.key !== "Escape" && e.key !== "ArrowDown" && e.stopPropagation()}
+                    placeholder="Search projects"
+                    aria-label="Search projects"
+                    className="h-7 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+              )}
+              {!query && (
+                <DropdownMenuItem onSelect={() => setProjectId(null)}>
+                  <InboxIcon className="size-4" /> No project (Drafts)
+                  {!projectId && <CheckIcon className="ml-auto size-4" />}
+                </DropdownMenuItem>
+              )}
+              {!query && projects?.length > 0 && <DropdownMenuSeparator />}
+              {query && !matchingProjects?.length && (
+                <p className="px-2 py-1.5 text-sm text-muted-foreground">No projects match.</p>
+              )}
+              {matchingProjects?.map((p) => (
                 <DropdownMenuItem key={p.id} onSelect={() => setProjectId(p.id)}>
                   <FolderIcon className="size-4" /> <span className="truncate">{p.name}</span>
                   {projectId === p.id && <CheckIcon className="ml-auto size-4" />}

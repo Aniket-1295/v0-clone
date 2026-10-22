@@ -40,7 +40,7 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | Blank chat | ✅ | |
 | Start from template | ✅ | 12 templates |
 | **Import from GitHub** | ✅ | Pick repo, branch and folder; its Next.js app becomes version 1 (PR #50) |
-| Project picker with search + "Create new project" | 🟡 | Picker exists, no search |
+| Project picker with search + "Create new project" | ✅ | Picker has search and New project |
 | Prompt chips (Contact Form, Mini Game, ...) | ✅ | |
 
 ## 4. Navigation, header, account
@@ -52,9 +52,9 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | **Design Systems** | ❌ | Saved theme (colours, fonts, radius, components) applied to new chats |
 | Workspace / team switcher ("serviceos") | ❌ | Needs teams |
 | **Invite** (collaborators) | ❌ | Needs teams and roles |
-| Star a chat | 🟡 | Projects can be starred, chats cannot |
+| Star a chat | ✅ | Projects and chats can be starred (favorites listed first) |
 | Private / public lock on a chat | 🟡 | Share link exists; no visible privacy toggle in the header |
-| Title menu (rename, duplicate, delete, move) | 🟡 | No duplicate / fork |
+| Title menu (rename, duplicate, delete, move) | ✅ | Rename, favorite, duplicate, move, delete |
 | Publish | ✅ | Vercel |
 | Credits balance in the sidebar ("$5") | 🟡 | We show generations left, not in the sidebar footer |
 | "Worked for 1s" collapsible run summary | 🟡 | We show live steps; no total time |
@@ -70,8 +70,8 @@ Ordered by value to users and how much existing code each one reuses.
 5. ✅ **Instructions**: per-project and per-chat rules for the agent. (PR #49, merged)
 6. ✅ **Import from GitHub**: start a chat from an existing repository. (PR #50, merged)
 7. ✅ **Model tiers**: Mini / Pro / Max mapped to Gemini models, limited by plan, with credit costs. (PR #52, merged)
-8. 🟡 **Generate Images**: the agent can create images for the app. (`feat/generate-images`)
-9. **Small polish**: star and duplicate chats, project search in the picker, "Worked for Xs", credits in the sidebar.
+8. ✅ **Generate Images**: the agent can create images for the app. (PR #53, merged)
+9. 🟡 **Small polish**: star and duplicate chats (done), project search in the picker (done); "Worked for Xs" and sidebar credits already shipped. (`feat/small-polish`)
 10. **Database**: connect Neon / Supabase, browse tables.
 11. **Design Systems**.
 12. **Figma import**.

@@ -164,7 +164,10 @@ const DraftsGroup = ({ pathname }) => {
               {drafts?.slice(0, 15).map((chat) => (
                 <SidebarMenuItem key={chat.id} className="group/item">
                   <SidebarMenuButton asChild isActive={pathname === `/chat/${chat.id}`} className="pr-8">
-                    <Link href={`/chat/${chat.id}`}><span className="truncate">{chat.title}</span></Link>
+                    <Link href={`/chat/${chat.id}`}>
+                      <span className="truncate">{chat.title}</span>
+                      {chat.starred && <StarIcon aria-label="Favorite" className="ml-auto size-3 shrink-0 fill-current text-amber-500" />}
+                    </Link>
                   </SidebarMenuButton>
                   <ChatActions
                     chat={chat}
