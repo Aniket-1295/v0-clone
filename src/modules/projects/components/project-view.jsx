@@ -24,6 +24,7 @@ import {
   MonitorIcon,
   RefreshCcw,
   ScrollTextIcon,
+  TerminalIcon,
 } from "lucide-react";
 import FragmentWeb from "./fragment-web";
 import { FileExplorer } from "./file-explorer";
@@ -39,6 +40,7 @@ import { useCreateMessages, useGetMessages } from "@/modules/messages/hooks/mess
 import DesignPanel from "./design-panel";
 import DiffView from "./diff-view";
 import LogsView from "./logs-view";
+import TerminalView from "./terminal-view";
 import { showActionError } from "@/lib/show-action-error";
 import PublishButton from "./publish-button";
 import ShareButton from "./share-button";
@@ -194,6 +196,10 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
             <ScrollTextIcon className="size-3.5" />
             Logs
           </TabsTrigger>
+          <TabsTrigger value="terminal" className="h-7 px-2.5 gap-1.5 text-xs">
+            <TerminalIcon className="size-3.5" />
+            Terminal
+          </TabsTrigger>
         </TabsList>
 
         {tabState === "preview" && sandboxUrl && (
@@ -306,6 +312,10 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
 
       <TabsContent value="logs" className="min-h-0 flex-1">
         <LogsView chatId={chatId} active={tabState === "logs"} />
+      </TabsContent>
+
+      <TabsContent value="terminal" className="min-h-0 flex-1">
+        <TerminalView chatId={chatId} active={tabState === "terminal"} />
       </TabsContent>
     </Tabs>
   );
