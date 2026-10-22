@@ -8,7 +8,7 @@ export async function generateMetadata({ params }) {
   const { shareId } = await params;
   const chat = await getSharedChat(shareId);
   // Shared links are unlisted: keep them out of search engines.
-  return { title: chat ? `${chat.title} · v0 clone` : "Not found", robots: { index: false, follow: false } };
+  return { title: chat ? chat.title : "Not found", robots: { index: false, follow: false } };
 }
 
 export default async function SharePage({ params }) {

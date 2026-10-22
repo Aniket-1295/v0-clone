@@ -9,6 +9,7 @@ import {Toaster} from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider";
 
 import { QueryProvider } from "@/components/query-provider";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,8 +22,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "V0 Clone",
-  description: "Text to Application",
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }) {

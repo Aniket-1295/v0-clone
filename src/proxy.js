@@ -9,6 +9,11 @@ const isPublicRoute = createRouteMatcher([
   "/templates(.*)",
   "/share(.*)",
   "/pricing",
+  "/terms",
+  "/privacy",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/opengraph-image(.*)",
 ])
 
 // Next 16 renamed middleware.js to proxy.js; it must export `proxy`.

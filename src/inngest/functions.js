@@ -1,4 +1,5 @@
 import { inngest } from "./client";
+import * as Sentry from "@sentry/nextjs";
 import Sandbox from "@e2b/code-interpreter";
 import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
 import { buildFollowUpContext } from "./utils";
@@ -96,6 +97,14 @@ export const codeAgentFunction = inngest.createFunction(
     // Runs once all retries are exhausted: unblock the UI and give the credit back.
     onFailure: async ({ event, step }) => {
       const { chatId, projectId, userId } = event.data.event.data;
+
+      // Inngest catches the run's error, so Sentry would never see it otherwise.
+      await step.run("report-error", async () => {
+        const { name, message, stack } = event.data.error ?? {};
+        const error = Object.assign(new Error(message || "Code agent run failed"), { name: name || "Error", stack });
+        Sentry.captureException(error, { tags: { inngestFunction: "code-agent", runId: event.data.run_id, chatId: chatId ?? projectId } });
+        await Sentry.flush(2000);
+      });
 
       await step.run("write-error-message", async () => {
         if (event.data.run_id) await closeRunningSteps({ runId: event.data.run_id }, "error");
