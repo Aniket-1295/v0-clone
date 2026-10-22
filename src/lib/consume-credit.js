@@ -1,20 +1,26 @@
-import { consumeCredits } from "@/lib/usage";
+import { consumeCredits, hasProPlan } from "@/lib/usage";
 import { ActionErrorCode, fail } from "@/lib/action-result";
+import { notEnoughCreditsMessage, resolveTier } from "@/lib/model-tiers";
 
-const OUT_OF_CREDITS_MESSAGE = "You have run out of credits. Upgrade to keep generating.";
+/** The model tier the signed-in user asked for. Returns { tier } or { error: failed action result }. */
+export const resolveUserTier = async (tierId) => {
+  const { tier, error, upgrade } = resolveTier(tierId, await hasProPlan());
+  if (!error) return { tier };
+  return { error: fail(upgrade ? ActionErrorCode.UPGRADE_REQUIRED : ActionErrorCode.INVALID_INPUT, error) };
+};
 
-/** Spends one generation credit. Returns a failed action result, or null on success. */
-export const spendCredit = async () => {
+/** Spends a tier's credits. Returns a failed action result, or null on success. */
+export const spendCredit = async (tier) => {
   try {
-    await consumeCredits();
+    await consumeCredits(tier.credits);
     return null;
   } catch (error) {
-    // rate-limiter-flexible rejects with a RateLimiterRes (not an Error) when
-    // the user is out of points; anything else is a real failure.
+    // rate-limiter-flexible rejects with a RateLimiterRes (not an Error) when the
+    // user has too few points left; anything else is a real failure.
     if (error instanceof Error) {
       console.error("consumeCredits failed:", error);
       return fail(ActionErrorCode.INTERNAL, "Something went wrong. Please try again.");
     }
-    return fail(ActionErrorCode.TOO_MANY_REQUESTS, OUT_OF_CREDITS_MESSAGE);
+    return fail(ActionErrorCode.TOO_MANY_REQUESTS, notEnoughCreditsMessage(tier, error.remainingPoints ?? 0));
   }
 };

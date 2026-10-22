@@ -8,7 +8,7 @@ import { MessageRole, MessageType } from "@prisma/client";
 
 import { inngest } from "@/inngest/client";
 import db from "@/lib/db";
-import { spendCredit } from "@/lib/consume-credit";
+import { resolveUserTier, spendCredit } from "@/lib/consume-credit";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
@@ -59,8 +59,9 @@ const CHAT_DETAIL_SELECT = {
 /**
  * Starts a chat from a prompt, in a project or as a draft, and kicks off generation.
  * `image` ({ mimeType, data: base64 }) is an optional screenshot or mockup to recreate.
+ * `tierId` is the model tier (see src/lib/model-tiers.js); Mini when omitted.
  */
-export const createChat = async (value, projectId = null, image = null) => {
+export const createChat = async (value, projectId = null, image = null, tierId = null) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
@@ -75,10 +76,13 @@ export const createChat = async (value, projectId = null, image = null) => {
     if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
   }
 
+  const { tier, error: tierError } = await resolveUserTier(tierId);
+  if (tierError) return tierError;
+
   const runningError = await checkNoRunningGeneration(user.id);
   if (runningError) return runningError;
 
-  const creditError = await spendCredit();
+  const creditError = await spendCredit(tier);
   if (creditError) return creditError;
 
   try {
@@ -92,6 +96,7 @@ export const createChat = async (value, projectId = null, image = null) => {
             content: prompt,
             role: MessageRole.USER,
             type: MessageType.RESULT,
+            modelTier: tier.id,
             ...(parsed.image ? { attachments: { create: parsed.image } } : {}),
           },
         },
@@ -104,7 +109,7 @@ export const createChat = async (value, projectId = null, image = null) => {
 
     await inngest.send({
       name: "code-agent/run",
-      data: { value: prompt, chatId: chat.id, userId: user.clerkId },
+      data: { value: prompt, chatId: chat.id, userId: user.clerkId, tier: tier.id },
     });
 
     return ok(chat);

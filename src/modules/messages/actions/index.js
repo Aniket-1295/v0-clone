@@ -4,7 +4,8 @@ import { MessageRole, MessageType } from "@prisma/client";
 import db from "@/lib/db";
 import { inngest } from "@/inngest/client";
 import { getCurrentUser } from "@/modules/auth/actions";
-import { spendCredit } from "@/lib/consume-credit";
+import { resolveUserTier, spendCredit } from "@/lib/consume-credit";
+import { getTier, refundNote } from "@/lib/model-tiers";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { refundCredits } from "@/lib/usage";
 import { closeRunningSteps } from "@/inngest/progress";
@@ -14,8 +15,11 @@ import { checkNoRunningGeneration } from "@/lib/generation-guard";
 
 const findOwnChat = (chatId, userId) => db.chat.findFirst({ where: { id: chatId, userId } });
 
-/** Sends a follow-up prompt (optionally with an image to recreate) and kicks off generation. */
-export const createMessages = async (value, chatId, image = null) => {
+/**
+ * Sends a follow-up prompt (optionally with an image to recreate) and kicks off generation
+ * on the model tier `tierId` (Mini when omitted).
+ */
+export const createMessages = async (value, chatId, image = null, tierId = null) => {
   const user = await getCurrentUser();
 
   if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
@@ -30,10 +34,13 @@ export const createMessages = async (value, chatId, image = null) => {
 
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
+  const { tier, error: tierError } = await resolveUserTier(tierId);
+  if (tierError) return tierError;
+
   const runningError = await checkNoRunningGeneration(user.id);
   if (runningError) return runningError;
 
-  const creditError = await spendCredit();
+  const creditError = await spendCredit(tier);
   if (creditError) return creditError;
 
   try {
@@ -43,6 +50,7 @@ export const createMessages = async (value, chatId, image = null) => {
         content: prompt,
         role: MessageRole.USER,
         type: MessageType.RESULT,
+        modelTier: tier.id,
         ...(parsed.image ? { attachments: { create: parsed.image } } : {}),
       },
     });
@@ -59,6 +67,7 @@ export const createMessages = async (value, chatId, image = null) => {
         value: prompt,
         chatId,
         userId: user.clerkId,
+        tier: tier.id,
       },
     });
 
@@ -107,7 +116,7 @@ export const getAgentSteps = async (chatId) => {
 
 /**
  * Stops the chat's running generation: cancels the agent run, writes a "Stopped" reply and
- * refunds the credit. Files the agent already wrote stay in the sandbox.
+ * refunds the prompt's credits. Files the agent already wrote stay in the sandbox.
  */
 export const stopGeneration = async (chatId) => {
   const user = await getCurrentUser();
@@ -123,12 +132,13 @@ export const stopGeneration = async (chatId) => {
   try {
     await inngest.send({ name: "code-agent/cancel", data: { chatId } });
 
+    const { credits } = getTier(prompt.modelTier);
     // The reply ends the generation for the UI; the run checks for it before saving.
     await db.message.create({
-      data: { chatId, content: "Stopped. Your credit has been refunded.", role: MessageRole.ASSISTANT, type: MessageType.RESULT },
+      data: { chatId, content: `Stopped. ${refundNote(credits)}`, role: MessageRole.ASSISTANT, type: MessageType.RESULT },
     });
     await closeRunningSteps({ promptId: prompt.id }, "stopped");
-    await refundCredits(user.clerkId);
+    await refundCredits(user.clerkId, credits);
 
     return ok({ stopped: true });
   } catch (error) {

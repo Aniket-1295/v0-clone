@@ -101,6 +101,8 @@ model Message {
   content String
   role MessageRole
   type MessageType
+  // The model tier a prompt ran on (mini, pro, max); null on replies and older prompts.
+  modelTier String?
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

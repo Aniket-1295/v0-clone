@@ -19,8 +19,24 @@ export const AGENT_MODELS = parseList(process.env.GEMINI_MODELS).length
   : DEFAULT_AGENT_MODELS;
 const TEXT_MODELS = [...DEFAULT_TEXT_MODELS, ...AGENT_MODELS];
 
+// The Max tier's models (Gemini Pro needs a paid key). Override with GEMINI_MAX_MODELS.
+const DEFAULT_MAX_MODELS = ["gemini-3.1-pro-preview"];
+export const MAX_MODELS = parseList(process.env.GEMINI_MAX_MODELS).length
+  ? parseList(process.env.GEMINI_MAX_MODELS)
+  : DEFAULT_MAX_MODELS;
+
 // How much the model thinks per turn (MINIMAL, LOW, MEDIUM, HIGH). Lower is much faster.
 const AGENT_THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL || "LOW";
+
+/**
+ * The models a tier's agent runs on, in order, and how much they think. Mini and Pro share
+ * the Flash rotation (Pro thinks harder). Max tries its Pro models first and falls back to
+ * the Flash rotation; `primary` tells which models count as the tier's own.
+ */
+export const tierModels = (tierId) => {
+  if (tierId === "max") return { models: [...MAX_MODELS, ...AGENT_MODELS], primary: MAX_MODELS, thinkingLevel: "HIGH" };
+  return { models: AGENT_MODELS, primary: AGENT_MODELS, thinkingLevel: tierId === "pro" ? "HIGH" : AGENT_THINKING_LEVEL };
+};
 
 // Gemini 3 binds thought signatures to the model that produced them. When a turn from one
 // model is replayed to another, its function calls carry this documented placeholder instead.

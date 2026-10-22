@@ -16,15 +16,22 @@ function createUsageTracker(points) {
   });
 }
 
-export async function getUsageTracker() {
+/** Whether the signed-in user is on the Pro plan. */
+export async function hasProPlan() {
   const { has } = await auth();
-
-  const hasProAccess = has({ plan: "pro" });
-
-  return createUsageTracker(hasProAccess ? PRO_POINTS : FREE_POINTS);
+  return has({ plan: "pro" });
 }
 
-export async function consumeCredits() {
+export async function getUsageTracker() {
+  return createUsageTracker((await hasProPlan()) ? PRO_POINTS : FREE_POINTS);
+}
+
+/**
+ * Spends `cost` credits. Rejects with the RateLimiterRes (not an Error) when the user has
+ * fewer than `cost` left; the rejected points are given back first, so a model the user
+ * cannot afford does not eat the credits they still have.
+ */
+export async function consumeCredits(cost = GENERATION_COST) {
   const { userId } = await auth();
 
   if (!userId) {
@@ -32,9 +39,15 @@ export async function consumeCredits() {
   }
 
   const usageTracker = await getUsageTracker();
-  const result = await usageTracker.consume(userId, GENERATION_COST);
-
-  return result;
+  try {
+    return await usageTracker.consume(userId, cost);
+  } catch (rejection) {
+    if (rejection instanceof Error) throw rejection;
+    await usageTracker.reward(userId, cost);
+    throw Object.assign(rejection, {
+      remainingPoints: Math.max(0, usageTracker.points - (rejection.consumedPoints - cost)),
+    });
+  }
 }
 
 /**

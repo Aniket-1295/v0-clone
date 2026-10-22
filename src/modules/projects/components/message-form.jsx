@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MAX_PROMPT_LENGTH } from "@/lib/generation-limits";
 import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
+import ModelPicker, { useModelTier } from "@/modules/app/components/model-picker";
 
 
 // Empty is allowed when an image is attached (the prompt then asks to recreate it).
@@ -47,6 +48,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, 
 
   const {data:usage} = useStatus()
   const attachment = useImageAttachment()
+  const { tier } = useModelTier()
 
   const showUsage = !!usage;
 
@@ -65,7 +67,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, 
   const onSubmit = async (values) => {
     if (isGenerating || !canSend) return;
     try {
-      await mutateAsync({ value: values.content.trim() || IMAGE_ONLY_PROMPT, image: attachment.image })
+      await mutateAsync({ value: values.content.trim() || IMAGE_ONLY_PROMPT, image: attachment.image, tierId: tier.id })
       form.reset()
       attachment.clear()
       toast.success("Message sent successfully")
@@ -147,7 +149,11 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, 
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-1.5">
+            <ModelPicker
+              disabled={isPending}
+              className="-ml-1 inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 cursor-pointer"
+            />
+            <div className="text-xs text-muted-foreground hidden lg:flex items-center gap-1.5">
               <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
                 <span>&#8984;</span>Enter
               </kbd>

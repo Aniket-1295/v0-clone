@@ -17,7 +17,6 @@ import {
   ListChecksIcon,
   MicIcon,
   PlusIcon,
-  SparklesIcon,
   SquareIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -49,12 +48,10 @@ import { useCreateChat } from "@/modules/chats/hooks/chat";
 import { useGetProjectById, useGetProjects } from "@/modules/projects/hooks/project";
 import InstructionsSection from "@/modules/projects/components/instructions-section";
 import { useAppShell } from "./app-shell";
+import ModelPicker, { useModelTier } from "./model-picker";
 
 // Sent when the user attaches an image without typing anything.
 const IMAGE_ONLY_PROMPT = "Recreate this design.";
-
-// The model the agent runs on today; more tiers come with the model picker work (A3).
-const MODELS = [{ id: "v0-mini", name: "v0 Mini", description: "Fast generation for everyday apps" }];
 
 const ghostButton =
   "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer";
@@ -73,6 +70,7 @@ export default function AppPrompt({ initialProjectId = null }) {
   const { data: projects } = useGetProjects();
   const { data: projectDetail } = useGetProjectById(projectId, { enabled: instructionsOpen && !!projectId });
   const createChat = useCreateChat();
+  const { tier } = useModelTier();
   const speech = useSpeechInput({ getBase: () => value, onText: setValue });
   const project = projects?.find((p) => p.id === projectId);
   const attachment = useImageAttachment();
@@ -92,7 +90,7 @@ export default function AppPrompt({ initialProjectId = null }) {
   const submit = async () => {
     if (!canSend || createChat.isPending) return;
     try {
-      const chat = await createChat.mutateAsync([value.trim() || IMAGE_ONLY_PROMPT, projectId, attachment.image]);
+      const chat = await createChat.mutateAsync([value.trim() || IMAGE_ONLY_PROMPT, projectId, attachment.image, tier.id]);
       router.push(`/chat/${chat.id}`);
     } catch (error) {
       showActionError(error, router, "Failed to start the chat");
@@ -153,23 +151,7 @@ export default function AppPrompt({ initialProjectId = null }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className={ghostButton}>
-            <SparklesIcon className="size-3.5" /> {MODELS[0].name} <ChevronDownIcon className="size-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-64">
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Model</DropdownMenuLabel>
-            {MODELS.map((model) => (
-              <DropdownMenuItem key={model.id} className="items-start">
-                <div className="flex-1">
-                  <p className="text-sm">{model.name}</p>
-                  <p className="text-xs text-muted-foreground">{model.description}</p>
-                </div>
-                <CheckIcon className="mt-0.5 size-4" />
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ModelPicker className={ghostButton} />
 
         <div className="ml-auto flex items-center gap-1.5">
           <PromptLength text={value} className="mr-1" />
