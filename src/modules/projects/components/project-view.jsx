@@ -1,12 +1,12 @@
 "use client";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import ProjectHeader from "./project-header";
@@ -19,12 +19,9 @@ import {
   DownloadIcon,
   ExternalLink,
   EyeIcon,
-  GitCompareIcon,
   MessageSquare,
   MonitorIcon,
   RefreshCcw,
-  ScrollTextIcon,
-  TerminalIcon,
 } from "lucide-react";
 import FragmentWeb from "./fragment-web";
 import { FileExplorer } from "./file-explorer";
@@ -32,6 +29,17 @@ import { Hint } from "@/components/ui/hint";
 import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_OPEN,
+  closePanel,
+  getOpenPanelsSnapshot,
+  nextActive,
+  openPanel,
+  parseOpenPanels,
+  parseTabParam,
+  saveOpenPanels,
+  subscribePanelStore,
+} from "@/lib/workspace-panels";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { MessageRole } from "@prisma/client";
@@ -41,11 +49,12 @@ import DesignPanel from "./design-panel";
 import DiffView from "./diff-view";
 import LogsView from "./logs-view";
 import TerminalView from "./terminal-view";
+import SettingsView from "./settings-view";
+import WorkspaceTabBar from "./workspace-tab-bar";
+import GithubReturnToasts from "./github-return-toasts";
 import { showActionError } from "@/lib/show-action-error";
 import PublishButton from "./publish-button";
 import ShareButton from "./share-button";
-import EnvVarsButton from "./env-vars-button";
-import GithubButton from "./github-button";
 
 const EmptyPane = ({ icon: Icon, text }) => (
   <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -75,7 +84,7 @@ const downloadFiles = (files, name) => {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
-const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
+const PreviewPane = ({ chatId, activeFragment, tabState, setTabState, openPanels, onOpenPanel, onClosePanel }) => {
   const router = useRouter();
   const { data: chat } = useGetChat(chatId);
   const { data: messages } = useGetMessages(chatId);
@@ -179,28 +188,7 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
       onValueChange={setTabState}
     >
       <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
-        <TabsList className="h-8 p-0.5">
-          <TabsTrigger value="preview" className="h-7 px-2.5 gap-1.5 text-xs">
-            <EyeIcon className="size-3.5" />
-            Preview
-          </TabsTrigger>
-          <TabsTrigger value="code" className="h-7 px-2.5 gap-1.5 text-xs">
-            <Code className="size-3.5" />
-            Code
-          </TabsTrigger>
-          <TabsTrigger value="diff" className="h-7 px-2.5 gap-1.5 text-xs">
-            <GitCompareIcon className="size-3.5" />
-            Diff
-          </TabsTrigger>
-          <TabsTrigger value="logs" className="h-7 px-2.5 gap-1.5 text-xs">
-            <ScrollTextIcon className="size-3.5" />
-            Logs
-          </TabsTrigger>
-          <TabsTrigger value="terminal" className="h-7 px-2.5 gap-1.5 text-xs">
-            <TerminalIcon className="size-3.5" />
-            Terminal
-          </TabsTrigger>
-        </TabsList>
+        <WorkspaceTabBar openPanels={openPanels} onOpen={onOpenPanel} onClose={onClosePanel} />
 
         {tabState === "preview" && sandboxUrl && (
           <div className="flex min-w-0 flex-1 items-center gap-1">
@@ -291,44 +279,85 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState }) => {
         )}
       </TabsContent>
 
-      <TabsContent value="code" className="min-h-0 flex-1">
-        {activeFragment?.files ? (
-          <FileExplorer
-            key={activeFragment.id}
-            files={activeFragment.files}
-            editable={isLatest && !generating}
-            readOnlyReason={readOnlyReason}
-            onSave={onSaveEdits}
-            saving={saveEdits.isPending}
-          />
-        ) : (
-          <EmptyPane icon={Code} text="Generated code will appear here" />
-        )}
-      </TabsContent>
+      {openPanels.includes("code") && (
+        <TabsContent value="code" className="min-h-0 flex-1">
+          {activeFragment?.files ? (
+            <FileExplorer
+              key={activeFragment.id}
+              files={activeFragment.files}
+              editable={isLatest && !generating}
+              readOnlyReason={readOnlyReason}
+              onSave={onSaveEdits}
+              saving={saveEdits.isPending}
+            />
+          ) : (
+            <EmptyPane icon={Code} text="Generated code will appear here" />
+          )}
+        </TabsContent>
+      )}
 
-      <TabsContent value="diff" className="min-h-0 flex-1">
-        <DiffView versions={versions} activeFragment={activeFragment} />
-      </TabsContent>
+      {openPanels.includes("diff") && (
+        <TabsContent value="diff" className="min-h-0 flex-1">
+          <DiffView versions={versions} activeFragment={activeFragment} />
+        </TabsContent>
+      )}
 
-      <TabsContent value="logs" className="min-h-0 flex-1">
-        <LogsView chatId={chatId} active={tabState === "logs"} />
-      </TabsContent>
+      {openPanels.includes("logs") && (
+        <TabsContent value="logs" className="min-h-0 flex-1">
+          <LogsView chatId={chatId} active={tabState === "logs"} />
+        </TabsContent>
+      )}
 
-      <TabsContent value="terminal" className="min-h-0 flex-1">
-        <TerminalView chatId={chatId} active={tabState === "terminal"} />
-      </TabsContent>
+      {openPanels.includes("terminal") && (
+        <TabsContent value="terminal" className="min-h-0 flex-1">
+          <TerminalView chatId={chatId} active={tabState === "terminal"} />
+        </TabsContent>
+      )}
+
+      {openPanels.includes("settings") && (
+        <TabsContent value="settings" className="min-h-0 flex-1">
+          <SettingsView chatId={chatId} />
+        </TabsContent>
+      )}
     </Tabs>
   );
 };
 
 const ProjectView = ({ chatId, initialTab = "preview" }) => {
+  const requested = parseTabParam(initialTab);
   const [activeFragment, setActiveFragment] = useState(null);
-  const [tabState, setTabState] = useState(initialTab);
+  const [tabState, setTabState] = useState(requested);
+  const storedJson = useSyncExternalStore(
+    subscribePanelStore,
+    () => getOpenPanelsSnapshot(chatId),
+    () => JSON.stringify(DEFAULT_OPEN)
+  );
+  const storedOpen = parseOpenPanels(storedJson);
+  const openPanels = openPanel(storedOpen, tabState);
   // Phones get one pane at a time instead of side-by-side panels.
-  const [mobilePane, setMobilePane] = useState(initialTab === "code" ? "preview" : "chat");
+  const [mobilePane, setMobilePane] = useState(requested === "preview" ? "chat" : "preview");
   const isMobile = useIsMobile();
 
   useKeepSandboxAlive(chatId);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (tabState === "preview") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", tabState);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [tabState]);
+
+  const focusTab = (id) => {
+    saveOpenPanels(chatId, openPanel(storedOpen, id));
+    setTabState(id);
+    setMobilePane("preview");
+  };
+
+  const closeTab = (id) => {
+    saveOpenPanels(chatId, closePanel(storedOpen, id));
+    setTabState((active) => nextActive({ open: storedOpen, active, closing: id }));
+  };
 
   const chat = (
     <MessageContainer
@@ -348,11 +377,15 @@ const ProjectView = ({ chatId, initialTab = "preview" }) => {
       activeFragment={activeFragment}
       tabState={tabState}
       setTabState={setTabState}
+      openPanels={openPanels}
+      onOpenPanel={focusTab}
+      onClosePanel={closeTab}
     />
   );
 
   return (
     <div className="h-dvh flex flex-col bg-background">
+      <GithubReturnToasts />
       <ProjectHeader chatId={chatId}>
         {isMobile && (
           <div className="flex rounded-md border p-0.5">
@@ -376,9 +409,7 @@ const ProjectView = ({ chatId, initialTab = "preview" }) => {
             ))}
           </div>
         )}
-        <EnvVarsButton chatId={chatId} />
         <ShareButton chatId={chatId} />
-        <GithubButton chatId={chatId} />
         <PublishButton chatId={chatId} />
         <Button asChild size="sm" variant="outline" className="h-8">
           <Link href={"/pricing"}>
