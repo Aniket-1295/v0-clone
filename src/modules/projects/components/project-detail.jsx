@@ -82,7 +82,7 @@ export default function ProjectDetail({ projectId }) {
         <h2 className="border-b px-5 py-3.5 font-medium">Production Deployment</h2>
         <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,320px)_1fr]">
           <div className="overflow-hidden rounded-lg border bg-muted">
-            {latest ? (
+            {latest?.sandboxUrl ? (
               <TemplateThumbnail src={latest.sandboxUrl} />
             ) : (
               <div className="flex aspect-[16/10] items-center justify-center text-sm text-muted-foreground">No versions yet</div>

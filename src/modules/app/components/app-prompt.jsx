@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
   FolderIcon,
   FolderPlusIcon,
+  GithubIcon,
   ImagePlusIcon,
   InboxIcon,
   LayoutTemplateIcon,
@@ -142,6 +143,9 @@ export default function AppPrompt({ initialProjectId = null }) {
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/templates"><LayoutTemplateIcon className="size-4" /> Start from a template</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/import"><GithubIcon className="size-4" /> Import from GitHub</Link>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={openNewProject}>
               <FolderPlusIcon className="size-4" /> New project

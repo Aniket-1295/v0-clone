@@ -132,20 +132,30 @@ export const createSandboxFromFiles = async (files, { env = {} } = {}) => {
   const packageJsonPath = `${APP_ROOT}/package.json`;
   const templatePackageJson = await sandbox.files.read(packageJsonPath);
 
-  await sandbox.files.write(
-    entries.map(([filePath, content]) => ({ path: toAbsolutePath(filePath), data: content }))
-  );
-
-  // The agent may have installed packages; package.json then differs from the template's.
   const restoredPackageJson = entries.find(
     ([filePath]) => toAbsolutePath(filePath) === packageJsonPath
   )?.[1];
 
+  // A whole project (snapshots and GitHub imports carry package.json) replaces the
+  // template's app/ folder. Otherwise a project using src/app would be shadowed by the
+  // template's app/, or two page files (page.tsx and page.jsx) would clash.
+  if (restoredPackageJson) {
+    await sandbox.commands.run(templateAppCleanup(entries.map(([filePath]) => filePath)), { cwd: APP_ROOT, timeoutMs: 30_000 });
+  }
+
+  await sandbox.files.write(
+    entries.map(([filePath, content]) => ({ path: toAbsolutePath(filePath), data: content }))
+  );
+
+  // The agent may have installed packages, or the project was imported; package.json then
+  // differs from the template's.
   if (restoredPackageJson && restoredPackageJson !== templatePackageJson) {
-    await sandbox.commands.run(`npm install ${LIGHT_NPM_FLAGS}`, {
-      cwd: APP_ROOT,
-      timeoutMs: 5 * 60 * 1000,
-    });
+    await installPackages(sandbox);
+    // The running dev server keeps the template's Next.js in memory; a different version
+    // needs a fresh one.
+    if (nextVersionOf(restoredPackageJson) !== nextVersionOf(templatePackageJson)) {
+      await restartDevServer(sandbox);
+    }
   }
 
   // Warm up the dev server so the first preview load does not wait for compilation.
@@ -154,6 +164,55 @@ export const createSandboxFromFiles = async (files, { env = {} } = {}) => {
     .catch(() => {});
 
   return sandbox;
+};
+
+/**
+ * npm install for a restored or imported package.json. Projects often pin peer versions
+ * that conflict with the template's packages (ERESOLVE), and their .npmrc (a dot file, not
+ * imported) usually allowed that, so such a failure is retried with --legacy-peer-deps.
+ */
+const installPackages = async (sandbox) => {
+  const install = (extra = "") =>
+    sandbox.commands.run(`npm install ${LIGHT_NPM_FLAGS}${extra}`, { cwd: APP_ROOT, timeoutMs: 5 * 60 * 1000 });
+  try {
+    await install();
+  } catch (error) {
+    if (!String(error?.stderr ?? "").includes("ERESOLVE")) throw error;
+    await install(" --legacy-peer-deps");
+  }
+};
+
+const relativePath = (filePath) => filePath.replace(new RegExp(`^${APP_ROOT}/`), "").replace(/^\/+/, "");
+
+/**
+ * The shell command that clears the template's app/ folder before a whole project is
+ * written: everything except its favicon when the project has its own app/ (it rewrites
+ * the rest), or the whole folder when the project routes from src/app or pages.
+ */
+export const templateAppCleanup = (filePaths) =>
+  filePaths.some((filePath) => relativePath(filePath).startsWith("app/"))
+    ? `find ${APP_ROOT}/app -type f ! -name favicon.ico -delete`
+    : `rm -rf ${APP_ROOT}/app`;
+
+/** The `next` version range a package.json asks for, or null. */
+export const nextVersionOf = (packageJson) => {
+  try {
+    const pkg = JSON.parse(packageJson);
+    return pkg.dependencies?.next ?? pkg.devDependencies?.next ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/** Stops the template's dev server and starts one with the project's own Next.js. */
+const restartDevServer = async (sandbox) => {
+  // "[n]ext" matches the dev server but not this shell, whose own command line has the pattern.
+  await sandbox.commands.run("pkill -f '[n]ext dev' ; pkill -f '[n]ext-server' ; true", { timeoutMs: 15_000 }).catch(() => {});
+  await sandbox.commands.run("npx next dev -p 3000", { cwd: APP_ROOT, background: true });
+  // Wait for it to listen (the warm-up request afterwards compiles the first page).
+  await sandbox.commands
+    .run("for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:3000 && exit 0; sleep 1; done; exit 1", { timeoutMs: 75_000 })
+    .catch(() => {});
 };
 
 /** The chat's most recent generated version. */

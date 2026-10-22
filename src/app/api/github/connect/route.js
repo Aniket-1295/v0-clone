@@ -2,11 +2,13 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { authorizeUrl, isGithubConfigured } from "@/lib/github";
-import { STATE_COOKIE, callbackUrl, originOf, safeReturnPath } from "@/modules/github-oauth";
+import { IMPORT_RETURN, STATE_COOKIE, callbackUrl, originOf, safeReturnPath } from "@/modules/github-oauth";
 
 // Starts "Connect GitHub": sends the signed-in user to GitHub to approve access.
 export async function GET(request) {
-  const chatId = new URL(request.url).searchParams.get("chatId");
+  const params = new URL(request.url).searchParams;
+  // A chat id, or "import" when started from the import page.
+  const chatId = params.get("chatId") ?? (params.get("return") === IMPORT_RETURN ? IMPORT_RETURN : null);
   const back = new URL(safeReturnPath(chatId), originOf(request));
 
   if (!(await getCurrentUser())) return NextResponse.redirect(new URL("/sign-in", originOf(request)));
