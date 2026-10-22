@@ -1,7 +1,7 @@
 // Workspace tabs the user can add or close. Preview is always open; the rest live in the
 // "+" menu. The open set is stored per chat so a refresh does not reset the layout.
 
-export const PANEL_IDS = ["preview", "code", "diff", "logs", "terminal", "settings"];
+export const PANEL_IDS = ["preview", "code", "diff", "logs", "terminal", "database", "settings"];
 
 export const PANELS = [
   { id: "preview", label: "Preview", closeable: false },
@@ -9,6 +9,7 @@ export const PANELS = [
   { id: "diff", label: "Diff", closeable: true },
   { id: "logs", label: "Logs", closeable: true },
   { id: "terminal", label: "Terminal", closeable: true },
+  { id: "database", label: "Database", closeable: true },
   { id: "settings", label: "Settings", closeable: true },
 ];
 

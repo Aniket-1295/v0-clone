@@ -14,9 +14,9 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | **Diff** (changes between versions) | ✅ | Per-file `+/-` and a line-by-line diff from version snapshots |
 | **Logs** (dev server / build output) | ✅ | Next.js server + browser console from the sandbox, filterable |
 | **Terminal** (run commands) | ✅ | One-shot commands in the chat's sandbox; blocked during a generation |
-| **Settings** (chat settings panel) | ✅ | Env vars, share, GitHub and publish in one panel; Share + Publish stay in the header |
-| **Database** (connect Supabase / Neon / Upstash, browse data) | ❌ | Needs connection + table browser; env vars are the base |
-| Add/close panels with "+" | ✅ | Preview stays open; Code / Diff / Logs / Terminal / Settings can be added or closed |
+| **Settings** (chat settings panel) | ✅ | Instructions, env vars, database, share, GitHub and publish; Share + Publish stay in the header |
+| **Database** (connect Supabase / Neon / Upstash, browse data) | 🟡 | Postgres URL per chat, read-only table browser; no Neon OAuth, Supabase app or Upstash yet |
+| Add/close panels with "+" | ✅ | Preview stays open; Code / Diff / Logs / Terminal / Database / Settings can be added or closed |
 
 ## 2. Prompt box ("+" menu and model picker)
 
@@ -71,8 +71,8 @@ Ordered by value to users and how much existing code each one reuses.
 6. ✅ **Import from GitHub**: start a chat from an existing repository. (PR #50, merged)
 7. ✅ **Model tiers**: Mini / Pro / Max mapped to Gemini models, limited by plan, with credit costs. (PR #52, merged)
 8. ✅ **Generate Images**: the agent can create images for the app. (PR #53, merged)
-9. 🟡 **Small polish**: star and duplicate chats (done), project search in the picker (done); "Worked for Xs" and sidebar credits already shipped. (`feat/small-polish`)
-10. **Database**: connect Neon / Supabase, browse tables.
+9. ✅ **Small polish**: favorite and duplicate chats, searchable project picker. (PR #54, merged)
+10. 🟡 **Database**: connect a Postgres URL and browse tables the agent can see (`feat/database`). Neon OAuth / Upstash later.
 11. **Design Systems**.
 12. **Figma import**.
 13. **Teams + Invite** (workspace switcher, roles, shared projects) — largest; changes the data model.

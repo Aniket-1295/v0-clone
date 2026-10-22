@@ -5,8 +5,12 @@ import {
   createChatFromTemplate,
   deleteChat,
   deleteEnvVar,
+  disconnectDatabase,
   duplicateChat,
   disconnectGithub,
+  getDatabaseStatus,
+  listDatabaseSchema,
+  setDatabaseUrl,
   enableDesignMode,
   getAppLogs,
   getChat,
@@ -132,6 +136,47 @@ const useEnvMutation = (chatId, fn) => {
 export const useSetEnvVar = (chatId) => useEnvMutation(chatId, setEnvVar);
 /** mutateAsync([key]) */
 export const useDeleteEnvVar = (chatId) => useEnvMutation(chatId, deleteEnvVar);
+
+export const useDatabaseStatus = (chatId) =>
+  useQuery({
+    queryKey: ["chats", "db", chatId],
+    queryFn: async () => unwrap(await getDatabaseStatus(chatId)),
+    enabled: !!chatId,
+  });
+
+export const useDatabaseSchema = (chatId, { enabled = true } = {}) =>
+  useQuery({
+    queryKey: ["chats", "db-schema", chatId],
+    queryFn: async () => unwrap(await listDatabaseSchema(chatId)),
+    enabled: enabled && !!chatId,
+  });
+
+const useDatabaseMutation = (chatId, fn) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (arg) => unwrap(await fn(chatId, arg)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["chats", "db", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["chats", "db-schema", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["env", chatId] });
+    },
+  });
+};
+
+/** mutateAsync(url) */
+export const useSetDatabaseUrl = (chatId) => useDatabaseMutation(chatId, setDatabaseUrl);
+/** mutateAsync() — arg unused */
+export const useDisconnectDatabase = (chatId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => unwrap(await disconnectDatabase(chatId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["chats", "db", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["chats", "db-schema", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["env", chatId] });
+    },
+  });
+};
 
 /** mutateAsync(): installs the design mode helper in the chat's sandbox. */
 export const useEnableDesignMode = (chatId) =>
