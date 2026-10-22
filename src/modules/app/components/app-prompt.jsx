@@ -34,6 +34,7 @@ import { showActionError } from "@/lib/show-action-error";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { useImageAttachment } from "@/hooks/use-image-attachment";
 import { ImageAttachmentPreview } from "@/components/image-attachment-preview";
+import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
 import { useCreateChat } from "@/modules/chats/hooks/chat";
 import { useGetProjects } from "@/modules/projects/hooks/project";
 import { useAppShell } from "./app-shell";
@@ -63,7 +64,9 @@ export default function AppPrompt({ initialProjectId = null }) {
   const project = projects?.find((p) => p.id === projectId);
   const attachment = useImageAttachment();
   const hasText = value.trim().length > 0;
-  const canSend = (hasText || !!attachment.image) && !attachment.processing;
+  const tooLong = isPromptTooLong(value);
+  const hasContent = hasText || !!attachment.image;
+  const canSend = hasContent && !attachment.processing && !tooLong;
 
   const submit = async () => {
     if (!canSend || createChat.isPending) return;
@@ -142,6 +145,7 @@ export default function AppPrompt({ initialProjectId = null }) {
         </DropdownMenu>
 
         <div className="ml-auto flex items-center gap-1.5">
+          <PromptLength text={value} className="mr-1" />
           <DropdownMenu>
             <DropdownMenuTrigger className={cn(ghostButton, "max-w-44")}>
               <span className="truncate">{project ? project.name : "Project"}</span>
@@ -167,12 +171,12 @@ export default function AppPrompt({ initialProjectId = null }) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {canSend ? (
+          {hasContent ? (
             <button
               type="button"
               aria-label="Send"
               onClick={submit}
-              disabled={createChat.isPending}
+              disabled={createChat.isPending || !canSend}
               className="flex size-8 items-center justify-center rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-60 cursor-pointer"
             >
               {createChat.isPending ? <Spinner /> : <ArrowUpIcon className="size-4" />}

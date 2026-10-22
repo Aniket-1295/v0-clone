@@ -92,6 +92,8 @@ const withImages = async (contents) => {
 export const codeAgentFunction = inngest.createFunction(
   {
     id: "code-agent",
+    // One run at a time per user; extra runs wait. Backs up the check in the server actions.
+    concurrency: [{ key: "event.data.userId", limit: 1 }],
     // The Stop button (stopGeneration) sends this; the run ends at its next step.
     cancelOn: [{ event: "code-agent/cancel", if: "async.data.chatId == event.data.chatId" }],
     // Runs once all retries are exhausted: unblock the UI and give the credit back.

@@ -9,6 +9,8 @@ import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { refundCredits } from "@/lib/usage";
 import { closeRunningSteps } from "@/inngest/progress";
 import { parseImage } from "@/lib/attachments";
+import { validatePrompt } from "@/lib/generation-limits";
+import { checkNoRunningGeneration } from "@/lib/generation-guard";
 
 const findOwnChat = (chatId, userId) => db.chat.findFirst({ where: { id: chatId, userId } });
 
@@ -18,12 +20,18 @@ export const createMessages = async (value, chatId, image = null) => {
 
   if (!user) return fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
 
+  const { prompt, error: promptError } = validatePrompt(value);
+  if (promptError) return fail(ActionErrorCode.INVALID_INPUT, promptError);
+
   const parsed = parseImage(image);
   if (parsed.error) return fail(ActionErrorCode.INTERNAL, parsed.error);
 
   const chat = await findOwnChat(chatId, user.id);
 
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+  const runningError = await checkNoRunningGeneration(user.id);
+  if (runningError) return runningError;
 
   const creditError = await spendCredit();
   if (creditError) return creditError;
@@ -32,7 +40,7 @@ export const createMessages = async (value, chatId, image = null) => {
     const newMessage = await db.message.create({
       data: {
         chatId,
-        content: value,
+        content: prompt,
         role: MessageRole.USER,
         type: MessageType.RESULT,
         ...(parsed.image ? { attachments: { create: parsed.image } } : {}),
@@ -48,7 +56,7 @@ export const createMessages = async (value, chatId, image = null) => {
     await inngest.send({
       name: "code-agent/run",
       data: {
-        value,
+        value: prompt,
         chatId,
         userId: user.clerkId,
       },

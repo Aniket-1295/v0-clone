@@ -13,6 +13,8 @@ import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
+import { validatePrompt } from "@/lib/generation-limits";
+import { checkNoRunningGeneration } from "@/lib/generation-guard";
 import { encryptSecret, decryptSecret, isSecretsConfigured } from "@/lib/secrets";
 import { createRepository, isGithubConfigured, pushFiles, repoNameFor, revokeToken } from "@/lib/github";
 import { ENV_KEY_PATTERN, MAX_ENV_VALUE_BYTES, MAX_ENV_VARS, getChatEnv, maskValue } from "@/lib/env-vars";
@@ -52,6 +54,9 @@ export const createChat = async (value, projectId = null, image = null) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
+  const { prompt, error: promptError } = validatePrompt(value);
+  if (promptError) return fail(ActionErrorCode.INVALID_INPUT, promptError);
+
   const parsed = parseImage(image);
   if (parsed.error) return fail(ActionErrorCode.INTERNAL, parsed.error);
 
@@ -60,18 +65,21 @@ export const createChat = async (value, projectId = null, image = null) => {
     if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
   }
 
+  const runningError = await checkNoRunningGeneration(user.id);
+  if (runningError) return runningError;
+
   const creditError = await spendCredit();
   if (creditError) return creditError;
 
   try {
     const chat = await db.chat.create({
       data: {
-        title: titleFrom(value),
+        title: titleFrom(prompt),
         userId: user.id,
         projectId,
         messages: {
           create: {
-            content: value,
+            content: prompt,
             role: MessageRole.USER,
             type: MessageType.RESULT,
             ...(parsed.image ? { attachments: { create: parsed.image } } : {}),
@@ -86,7 +94,7 @@ export const createChat = async (value, projectId = null, image = null) => {
 
     await inngest.send({
       name: "code-agent/run",
-      data: { value, chatId: chat.id, userId: user.clerkId },
+      data: { value: prompt, chatId: chat.id, userId: user.clerkId },
     });
 
     return ok(chat);

@@ -17,12 +17,14 @@ import { Form, FormField } from "@/components/ui/form";
 import { useCreateChat } from "@/modules/chats/hooks/chat";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { showActionError } from "@/lib/show-action-error";
+import { MAX_PROMPT_LENGTH } from "@/lib/generation-limits";
+import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
 
 const formSchema = z.object({
   content: z
     .string()
     .min(1, "Project description is required")
-    .max(1000, "Description is too long"),
+    .max(MAX_PROMPT_LENGTH, "Description is too long"),
 });
 
 /** The prompt form state, created by the page so starters elsewhere can fill it. */
@@ -45,6 +47,7 @@ const ProjectsForm = ({ form }) => {
   });
   const content = useWatch({ control: form.control, name: "content" }) ?? "";
   const hasText = content.trim().length > 0;
+  const canSend = hasText && !isPromptTooLong(content);
 
   const onSubmit = async (values) => {
     try {
@@ -86,7 +89,7 @@ const ProjectsForm = ({ form }) => {
                 // Enter sends, Shift+Enter adds a new line.
                 if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
-                  if (hasText && !isPending) form.handleSubmit(onSubmit)(e);
+                  if (canSend && !isPending) form.handleSubmit(onSubmit)(e);
                 }
               }}
             />
@@ -98,6 +101,7 @@ const ProjectsForm = ({ form }) => {
             Shift + Enter for a new line
           </p>
           <div className="ml-auto flex items-center gap-1.5">
+            <PromptLength text={content} className="mr-1" />
             {speechSupported && (
               <Hint text={listening ? "Stop dictation" : "Dictate"} side="bottom">
                 <Button
@@ -115,7 +119,7 @@ const ProjectsForm = ({ form }) => {
             <Button
               aria-label="Create project"
               className="size-8 rounded-md cursor-pointer bg-foreground text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-              disabled={isPending || !hasText}
+              disabled={isPending || !canSend}
               type="submit"
             >
               {isPending ? <Spinner /> : <ArrowUpIcon className="size-4" />}

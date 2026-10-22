@@ -20,11 +20,13 @@ import { showActionError } from "@/lib/show-action-error";
 import { useImageAttachment } from "@/hooks/use-image-attachment";
 import { ImageAttachmentPreview } from "@/components/image-attachment-preview";
 import { Hint } from "@/components/ui/hint";
+import { MAX_PROMPT_LENGTH } from "@/lib/generation-limits";
+import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
 
 
 // Empty is allowed when an image is attached (the prompt then asks to recreate it).
 const formSchema = z.object({
-  content: z.string().max(1000, "Description is too long"),
+  content: z.string().max(MAX_PROMPT_LENGTH, "Description is too long"),
 });
 
 const IMAGE_ONLY_PROMPT = "Recreate this design.";
@@ -52,7 +54,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
   });
 
   const content = useWatch({ control: form.control, name: "content" }) ?? "";
-  const canSend = (!!content.trim() || !!attachment.image) && !attachment.processing;
+  const canSend = (!!content.trim() || !!attachment.image) && !attachment.processing && !isPromptTooLong(content);
 
  
   const onSubmit = async (values) => {
@@ -137,6 +139,8 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
               </kbd>
               to send
             </div>
+            <div className="ml-auto flex items-center gap-2">
+            <PromptLength text={content} />
             {isGenerating ? (
               <Button
               aria-label="Stop generating"
@@ -160,6 +164,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false})
                 }
               </Button>
             )}
+            </div>
          </div>
         </form>
       </Form>
