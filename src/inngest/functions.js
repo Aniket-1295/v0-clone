@@ -12,6 +12,7 @@ import { getChatEnvKeys } from "@/lib/env-vars";
 import { buildInstructionsNote, loadChatInstructions } from "@/lib/instructions";
 import { buildDatabaseNote, loadChatDatabaseNote } from "@/lib/database";
 import { buildDesignSystemNote, loadChatDesignSystem } from "@/lib/design-system";
+import { isFigmaPrompt } from "@/lib/figma";
 
 import  db  from "@/lib/db";
 import { refundCredits } from "@/lib/usage";
@@ -43,6 +44,9 @@ Work efficiently:
 const IMAGE_NOTE = `
 The user attached an image of a design (a screenshot or mockup). Recreate it as closely as you can: its layout, sections, colours, typography, spacing and components, built with Tailwind and shadcn/ui. Use the text you can read in it; where content is unreadable, use realistic placeholder content.
 Build only what the image shows, in app/page.tsx plus a few components if needed: do not add sections, pages, modals or features that are not in the image, and do not install packages (Tailwind, shadcn/ui and lucide-react are enough).`;
+// Sent when the latest user prompt is a Figma import (image + structure block).
+const FIGMA_NOTE = `
+The attached image is a Figma frame, and the prompt includes a compact structure (names, layout, text and colours). Trust the image for layout and spacing. Use the exact text and colours from the structure block. Build with Tailwind and shadcn/ui; do not invent extra pages or sections. Do not call Figma or invent a Figma token — there is none in the sandbox.`;
 // Sent with the system prompt when the user turned on "Generate images".
 const IMAGES_NOTE = `
 You can create images with the generateImage tool (at most ${MAX_IMAGES_PER_RUN} in this task). Use it where real imagery makes the app better: hero images, product shots, illustrations, backgrounds, avatars. Do not use it for icons (use lucide-react) or for logos and images with text in them.
@@ -217,11 +221,13 @@ export const codeAgentFunction = inngest.createFunction(
     // thought signatures on later turns).
     const contents = toContents(history);
     const hasImage = history.some((turn) => turn.attachmentIds?.length);
+    const latestUser = [...history].reverse().find((turn) => turn.role === "user");
+    const hasFigma = hasImage && isFigmaPrompt(latestUser?.text || event.data.value);
     const envKeys = await step.run("get-env-names", () => getChatEnvKeys(chatId));
     const rules = await step.run("get-instructions", () => loadChatInstructions(db, chatId));
     const schema = await step.run("get-database-schema", () => loadChatDatabaseNote(db, chatId));
     const design = await step.run("get-design-system", () => loadChatDesignSystem(db, chatId));
-    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}${images ? `\n${IMAGES_NOTE}` : ""}\n${envNote(envKeys)}${buildInstructionsNote(rules)}${buildDatabaseNote(schema)}${buildDesignSystemNote(design)}`;
+    const system = `${PROMPT}\n${EFFICIENCY_NOTE}${hasImage ? `\n${IMAGE_NOTE}` : ""}${hasFigma ? `\n${FIGMA_NOTE}` : ""}${images ? `\n${IMAGES_NOTE}` : ""}\n${envNote(envKeys)}${buildInstructionsNote(rules)}${buildDatabaseNote(schema)}${buildDesignSystemNote(design)}`;
     const writtenFiles = {};
     let summary = "";
     // The last summary, kept in case the turn budget runs out while fixing an error.

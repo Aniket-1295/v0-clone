@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
   ChevronsUpDownIcon,
   CrownIcon,
+  FigmaIcon,
   FolderIcon,
   FolderPlusIcon,
   GithubIcon,
@@ -132,6 +133,9 @@ const NewChatButton = () => {
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/import"><GithubIcon className="size-4" /> Import from GitHub</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/import/figma"><FigmaIcon className="size-4" /> Import from Figma</Link>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

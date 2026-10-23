@@ -3,10 +3,10 @@
 Snapshot taken 23 Oct 2026. `master` is at commit `4cb036e` after 58 merged PRs and 162 commits.
 Live deployment: https://v0-clone-alpha-kohl.vercel.app
 
-Recently shipped on `master`: **Database** (a Postgres URL per chat with a read-only table
-browser) and **Design Systems** — a saved theme applied to new apps, now with a full shadcn
-token set imported from CSS (PR #57, #58). Next: see the open items in
-[V0-FEATURE-GAP.md](V0-FEATURE-GAP.md).
+Recently shipped: **Figma import** — connect a personal access token, paste a file or frame
+URL, and the agent builds from the exported frame image plus a compact structure note (one
+generation credit). Earlier on `master`: Database and Design Systems (PR #57, #58). Next: see
+the open items in [V0-FEATURE-GAP.md](V0-FEATURE-GAP.md).
 
 ## 1. What the project is
 
@@ -21,7 +21,7 @@ downloaded, shared, pushed to GitHub, or published to a permanent Vercel URL.
 |---|---|
 | Core loop (prompt → agent → live preview → follow-ups) | Working |
 | Reliability (sandbox lifetime, failures, refunds, polling) | Fixed (Phase 1 of the audit) |
-| Unit tests | 23 files, 140 tests on `master`, all passing (`npm test`) |
+| Unit tests | 24 files, 153 tests, all passing (`npm test`) |
 | Lint | Clean: 0 errors, 1 warning (`react-hooks/exhaustive-deps`) |
 | CI | GitHub Actions on every PR and push to `master`: Prisma validate, lint, tests, build |
 | Post-deploy check | `node scripts/smoke.mjs <url> --sync` |
@@ -34,7 +34,7 @@ project at 30–35% of a sellable v1. Since then all of Phase 1 has shipped, mos
 feature list, and most of the Phase 2 production-hygiene list (webhook onboarding, Sentry, legal
 and SEO pages). A separate [v0.app feature gap](V0-FEATURE-GAP.md) doc tracks parity work with
 v0's workspace (panels through Settings, Instructions, GitHub import, model tiers, Generate
-Images, Database and Design Systems shipped).
+Images, Database, Design Systems and Figma import shipped).
 
 ## 3. Tech stack
 
@@ -77,7 +77,8 @@ Images, Database and Design Systems shipped).
 
 ### 4.3 Generation (the AI agent)
 - Prompt by text, by **voice** (`use-speech-input`), or with an **image attachment**. With an
-  image, the agent recreates the screenshot or mockup.
+  image, the agent recreates the screenshot or mockup. **Import from Figma** attaches a rendered
+  frame plus its structure and uses the same recreate path.
 - The agent runs on Inngest with tools to run terminal commands, read files and create or update
   files. It is limited to 25 turns and receives the last 20 messages as context.
 - **Live progress**: each step (setting up, reading, writing files, running a command, checking)
@@ -108,11 +109,12 @@ Images, Database and Design Systems shipped).
   the sandbox's dev-server log), refreshed every few seconds, filterable by level, source and text.
 - **Terminal tab**: run one-shot shell commands in the chat's sandbox and see their output, with
   exit codes and command history. Blocked while a generation is running.
-- **Settings panel**: instructions, env vars, database, sharing, GitHub and publish in one
+- **Settings panel**: instructions, env vars, database, sharing, Figma, GitHub and publish in one
   place. Share and Publish also stay in the header. If the chat belongs to a project, that
   project's rules are shown above the chat rules.
-- **Prompt `+` shortcut**: in a chat, Instructions opens Settings and Database opens the
-  Database panel. On the home prompt, Instructions edits the selected project's rules.
+- **Prompt `+` shortcut**: in a chat, Instructions opens Settings, Database opens the
+  Database panel, and Import from Figma opens the import dialog. On the home prompt, Instructions
+  edits the selected project's rules and Import from Figma starts a new chat.
 - **"+" panel menu**: Preview stays open. Code, Diff, Logs, Terminal, Database and Settings can
   be added or closed. The open set is stored per chat; `?tab=` is the active tab.
 - **Versions**: every agent reply is a version holding a full snapshot of the files. Any version
@@ -144,6 +146,11 @@ Images, Database and Design Systems shipped).
   credit is spent. The preview sandbox replaces the template's `app/` folder (so `src/app` and
   `pages` projects work), retries installs with `--legacy-peer-deps`, and restarts the dev server
   when the project uses a different Next.js version.
+- **Import from Figma**: personal access token stored encrypted on the user (Settings → Figma).
+  Home `+` menu, New Chat menu (`/import/figma`) and the in-chat `+` menu. Paste a file or frame
+  URL, preview, pick a frame when the link has no `node-id`, then export a PNG and a compact
+  structure note. Starts a generation through `createChat` / `createMessages` (one credit). OAuth,
+  multi-frame mid-run reads and Figma variable sync are later.
 
 ### 4.5 Data model (Prisma)
 `User 1:N Project 1:N Chat 1:N Message 1:1 Fragment (version)`, plus:
@@ -153,6 +160,7 @@ Images, Database and Design Systems shipped).
 - `Usage`: the credit counter.
 - `DesignSystem`: a saved theme (colours, radius, font, and an optional full `tokens` JSON set).
 
+`User` also holds encrypted GitHub and Figma tokens (never sent to the client).
 The `Chat` table also holds sandbox, publish, share, GitHub and an encrypted database URL.
 `Project` and `Chat` each have optional `instructions` — standing rules the agent follows — and an
 optional `designSystem` (the chat's wins over the project's).

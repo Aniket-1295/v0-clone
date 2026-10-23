@@ -3,6 +3,7 @@
 import DatabaseSection from "./database-section";
 import DesignSystemSection from "./design-system-section";
 import EnvVarsSection from "./env-vars-section";
+import FigmaSection from "./figma-section";
 import GithubSection from "./github-section";
 import InstructionsSection from "./instructions-section";
 import PublishSection from "./publish-section";
@@ -22,7 +23,7 @@ export default function SettingsView({ chatId }) {
       <div className="border-b px-4 py-3">
         <p className="text-sm font-medium">Settings</p>
         <p className="text-xs text-muted-foreground">
-          Instructions, database, secrets, sharing, GitHub and publishing for this chat.
+          Instructions, database, secrets, sharing, Figma, GitHub and publishing for this chat.
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">
@@ -63,6 +64,9 @@ export default function SettingsView({ chatId }) {
           </section>
           <section className="overflow-hidden rounded-lg border bg-card">
             <ShareSection chatId={chatId} />
+          </section>
+          <section className="overflow-hidden rounded-lg border bg-card">
+            <FigmaSection />
           </section>
           <section className="overflow-hidden rounded-lg border bg-card">
             <GithubSection chatId={chatId} />

@@ -22,6 +22,9 @@ model User {
   // GitHub connection for "Push to GitHub" (OAuth). The token is encrypted with ENV_VARS_SECRET.
   githubLogin          String?
   githubTokenEncrypted String?
+  // Figma personal access token for "Import from Figma". Encrypted with ENV_VARS_SECRET.
+  figmaHandle          String?
+  figmaTokenEncrypted  String?
 
     projects Project[]
     chats    Chat[]
