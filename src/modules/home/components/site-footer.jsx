@@ -41,7 +41,7 @@ export default function SiteFooter() {
     <footer className="border-t">
       <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-8 px-4 py-12 md:grid-cols-6">
         <div className="col-span-2 md:col-span-1">
-          <Image src="/logo.svg" alt="v0" width={28} height={28} className="invert dark:invert-0" />
+          <Image src="/logo.svg" alt={SITE_NAME} width={28} height={28} className="invert dark:invert-0" />
         </div>
         {COLUMNS.map((column) => (
           <div key={column.title}>

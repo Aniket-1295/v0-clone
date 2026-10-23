@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PromptLength } from "@/components/prompt-length";
 import { showActionError } from "@/lib/show-action-error";
 import { MAX_INSTRUCTIONS_LENGTH } from "@/lib/instructions";
+import { SITE_NAME } from "@/lib/site";
 import { useUpdateChatInstructions } from "@/modules/chats/hooks/chat";
 import { useUpdateProjectInstructions } from "@/modules/projects/hooks/project";
 
@@ -21,7 +22,7 @@ const InstructionsSection = ({
   id,
   value = "",
   title = "Instructions",
-  description = "Rules v0 follows on every generation.",
+  description = `Rules ${SITE_NAME} follows on every generation.`,
 }) => {
   const router = useRouter();
   const incoming = value ?? "";

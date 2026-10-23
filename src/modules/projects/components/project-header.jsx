@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { useGetChat } from "@/modules/chats/hooks/chat";
+import { SITE_NAME } from "@/lib/site";
 
 /** Top bar of the chat workspace: app menu, then Project (or Drafts) / chat title. */
 const ProjectHeader = ({ chatId, children }) => {
@@ -37,7 +38,7 @@ const ProjectHeader = ({ chatId, children }) => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 gap-1.5 !pl-1.5 focus-visible:ring-0" aria-label="App menu">
-              <Image src="/logo.svg" alt="v0" width={24} height={24} className="shrink-0 invert dark:invert-0" />
+              <Image src="/logo.svg" alt={SITE_NAME} width={24} height={24} className="shrink-0 invert dark:invert-0" />
               <ChevronDownIcon className="size-3.5 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>

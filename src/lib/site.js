@@ -1,5 +1,7 @@
 // Product name and public URL in one place, so a rename is a one-line change.
-export const SITE_NAME = "V0 Clone";
+export const SITE_NAME = "Draftsmith";
+// URL-safe form of the name, for default repository, download and Vercel project names.
+export const SITE_SLUG = SITE_NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 export const SITE_DESCRIPTION =
   "Describe an app, or attach a screenshot, and an AI agent builds it as a real Next.js app you can preview, edit, share and publish.";
 export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@example.com";

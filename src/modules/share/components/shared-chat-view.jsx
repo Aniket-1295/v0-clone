@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MessageCard from "@/modules/projects/components/message-card";
 import FragmentWeb from "@/modules/projects/components/fragment-web";
 import { FileExplorer } from "@/modules/projects/components/file-explorer";
+import { SITE_NAME } from "@/lib/site";
 
 const PREVIEW_NOTES = {
   published: "Showing the published site. It may be an earlier version than the latest one.",
@@ -37,8 +38,8 @@ const SharedChatView = ({ shareId, chat }) => {
     <div className="flex min-h-dvh flex-col bg-background lg:h-dvh">
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-3">
         <div className="flex min-w-0 items-center gap-2 text-sm">
-          <Link href="/" aria-label="v0 clone home" className="shrink-0">
-            <Image src="/logo.svg" alt="v0" width={24} height={24} className="invert dark:invert-0" />
+          <Link href="/" aria-label={`${SITE_NAME} home`} className="shrink-0">
+            <Image src="/logo.svg" alt={SITE_NAME} width={24} height={24} className="invert dark:invert-0" />
           </Link>
           <span className="text-muted-foreground/60">/</span>
           <span className="truncate font-medium">{chat.title}</span>

@@ -21,7 +21,7 @@ describe("buildTree", () => {
 describe("repoNameFor", () => {
   it("turns a chat title into a valid repository name", () => {
     expect(repoNameFor("Rosa's Bakery — landing page!")).toBe("rosa-s-bakery-landing-page");
-    expect(repoNameFor("...")).toBe("v0-app");
+    expect(repoNameFor("...")).toBe("draftsmith-app");
     expect(repoNameFor("x".repeat(200))).toHaveLength(80);
   });
 });

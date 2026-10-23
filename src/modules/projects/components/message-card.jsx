@@ -8,6 +8,7 @@ import { Hint } from "@/components/ui/hint";
 import AgentProgress from "./agent-progress";
 import Image from "next/image";
 import React from "react";
+import { SITE_NAME } from "@/lib/site";
 
 const FragmentCard = ({ fragment, isActiveFragment, onFragmentClick }) => {
   return (
@@ -94,7 +95,7 @@ const AssistantMessage = ({
       <div className="mb-2 flex items-center gap-2">
         <div className="flex size-6 items-center justify-center rounded-md border bg-card">
           <Image
-            alt="v0"
+            alt={SITE_NAME}
             src={"/logo.svg"}
             height={14}
             width={14}

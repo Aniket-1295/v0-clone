@@ -6,6 +6,7 @@ import { MousePointerClickIcon, SparklesIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { applyElementEdit, findElementSource, readStyle, writeStyle } from "@/lib/design-source";
+import { SITE_NAME } from "@/lib/site";
 
 const shades = (prefix, list) => list.map((color) => `${prefix}-${color}`);
 const OPTIONS = {
@@ -132,7 +133,7 @@ const DesignPanel = ({ selection, files, onApply, onAskV0, busy, onClose }) => {
               {found?.matches > 1
                 ? "This element appears in several places in the code, so it can't be edited here."
                 : "This element's code can't be edited here (it may come from a component, a list or computed classes)."}{" "}
-              Describe the change and v0 will make it.
+              Describe the change and {SITE_NAME} will make it.
             </p>
             <textarea
               value={request}
@@ -164,7 +165,7 @@ const DesignPanel = ({ selection, files, onApply, onAskV0, busy, onClose }) => {
             onClick={() => onAskV0(`Change the ${label} element: ${request.trim()}`)}
           >
             {busy ? <Spinner className="size-3.5" /> : <SparklesIcon className="size-3.5" />}
-            Ask v0 (1 credit)
+            Ask {SITE_NAME} (1 credit)
           </Button>
         )}
       </div>

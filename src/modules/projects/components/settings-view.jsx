@@ -9,6 +9,7 @@ import InstructionsSection from "./instructions-section";
 import PublishSection from "./publish-section";
 import ShareSection from "./share-section";
 import { useGetChat } from "@/modules/chats/hooks/chat";
+import { SITE_NAME } from "@/lib/site";
 
 /**
  * Chat settings: instructions, secrets, sharing, GitHub and publishing in one place.
@@ -45,7 +46,7 @@ export default function SettingsView({ chatId }) {
               id={chatId}
               value={chat?.instructions ?? ""}
               title="Chat instructions"
-              description="Rules v0 follows on every generation in this chat."
+              description={`Rules ${SITE_NAME} follows on every generation in this chat.`}
             />
           </section>
           <section className="overflow-hidden rounded-lg border bg-card">
