@@ -25,11 +25,32 @@ model User {
 
     projects Project[]
     chats    Chat[]
+  designSystems DesignSystem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
- 
+
+}
+
+// A saved theme (brand colors, border radius, font) the user can apply to chats and
+// projects so new apps are generated in that look. Owned by the user.
+model DesignSystem {
+  id           String @id @default(cuid())
+  userId       String
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  primaryColor String // hex, e.g. "#2563eb"
+  accentColor  String // hex
+  radius       String // key: none | sm | md | lg | xl
+  font         String // key into FONT_OPTIONS (system font stacks)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  chats    Chat[]
+  projects Project[]
+
+  @@index([userId])
 }
 
 // A project groups chats, like a v0 project.
@@ -41,6 +62,9 @@ model Project {
   starred Boolean @default(false)
   // Standing rules the agent follows for every chat in this project.
   instructions String?
+  // Default theme for the project's chats (a chat's own design system overrides it).
+  designSystemId String?
+  designSystem   DesignSystem? @relation(fields: [designSystemId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -79,6 +103,9 @@ model Chat {
   starred Boolean @default(false)
   // Encrypted Postgres URL for the Database panel; injected as DATABASE_URL.
   databaseUrlEncrypted String?
+  // Theme applied to this chat's app; falls back to the project's when null.
+  designSystemId String?
+  designSystem   DesignSystem? @relation(fields: [designSystemId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
