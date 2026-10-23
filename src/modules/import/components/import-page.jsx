@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time-ago";
 import { useGetProjects } from "@/modules/projects/hooks/project";
+import { useActiveWorkspace } from "@/modules/teams/hooks";
 import { useGithubBranches, useGithubRepos, useImportGithubRepo, useImportStatus } from "../hooks";
 
 const GITHUB_NOTICES = {
@@ -54,6 +55,7 @@ export default function ImportPage({ githubNotice }) {
   const connected = !!status.data?.connected;
   const repos = useGithubRepos({ enabled: connected });
   const { data: projects } = useGetProjects();
+  const { isPersonal } = useActiveWorkspace();
   const importRepo = useImportGithubRepo();
 
   const [query, setQuery] = useState("");
@@ -89,6 +91,10 @@ export default function ImportPage({ githubNotice }) {
 
   const submit = async () => {
     if (!repo || importRepo.isPending) return;
+    if (!isPersonal && !projectId) {
+      setError("Pick a project first. Team chats cannot be drafts.");
+      return;
+    }
     setError(null);
     try {
       const chat = await importRepo.mutateAsync({
@@ -183,7 +189,7 @@ export default function ImportPage({ githubNotice }) {
                   </Field>
                   <Field label="Project">
                     <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className={inputClass}>
-                      <option value="">No project (Drafts)</option>
+                      {isPersonal ? <option value="">No project (Drafts)</option> : <option value="">Pick a project</option>}
                       {projects?.map((project) => (
                         <option key={project.id} value={project.id}>
                           {project.name}

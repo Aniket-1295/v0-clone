@@ -51,8 +51,8 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | Search, Home, Projects, Chats, Templates | ✅ | |
 | Drafts + Projects in sidebar | ✅ | |
 | **Design Systems** | ✅ | Saved theme applied to a chat/project: simple (colour, radius, font) or a full shadcn token set imported from CSS, with starter presets (PR #57, #58). Importing a whole component library (v0 "DS 2.0") not yet |
-| Workspace / team switcher ("serviceos") | ❌ | Needs teams |
-| **Invite** (collaborators) | ❌ | Needs teams and roles |
+| Workspace / team switcher ("serviceos") | 🟡 | Personal + team workspaces; no Vercel seats |
+| **Invite** (collaborators) | 🟡 | Invite to the team by email (copy link). No per-chat Can View / Can Edit |
 | Star a chat | ✅ | Projects and chats can be starred (favorites listed first) |
 | Private / public lock on a chat | 🟡 | Share link exists; no visible privacy toggle in the header |
 | Title menu (rename, duplicate, delete, move) | ✅ | Rename, favorite, duplicate, move, delete |
@@ -76,6 +76,6 @@ Ordered by value to users and how much existing code each one reuses.
 10. ✅ **Database**: connect a Postgres URL and browse tables the agent can see (PR #56, merged). Neon OAuth / Upstash later.
 11. ✅ **Design Systems**: simple themes + a full shadcn token set imported from CSS, with starter presets (PR #57, #58). Component-library import ("DS 2.0") later.
 12. ✅ **Figma import**: personal access token, file/frame URL, frame image + structure → agent.
-13. **Teams + Invite** (workspace switcher, roles, shared projects) — largest; changes the data model.
+13. 🟡 **Teams + Invite** (partial): optional Team above Project, sidebar workspace switcher, email invite (copy link). Every member can edit team projects. Not yet: per-chat Can View / Can Edit, default chat visibility, shared credits, Clerk Orgs, seats.
 
 Not planned: ChatGPT plan, Auto Permissions, MCPs (revisit after Instructions and Skills).

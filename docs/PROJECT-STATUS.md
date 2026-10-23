@@ -3,10 +3,10 @@
 Snapshot taken 23 Oct 2026. `master` is at commit `4cb036e` after 58 merged PRs and 162 commits.
 Live deployment: https://v0-clone-alpha-kohl.vercel.app
 
-Recently shipped: **Figma import** — connect a personal access token, paste a file or frame
-URL, and the agent builds from the exported frame image plus a compact structure note (one
-generation credit). Earlier on `master`: Database and Design Systems (PR #57, #58). Next: see
-the open items in [V0-FEATURE-GAP.md](V0-FEATURE-GAP.md).
+Recently shipped: **Teams + Invite (slim)** — optional Team above Project, workspace switcher,
+invite by email (copy link). Personal (no team / Personal selected) is unchanged. Credits stay
+per-user. Earlier: Figma import, Database, Design Systems. Next: see the open items in
+[V0-FEATURE-GAP.md](V0-FEATURE-GAP.md).
 
 ## 1. What the project is
 
@@ -21,7 +21,7 @@ downloaded, shared, pushed to GitHub, or published to a permanent Vercel URL.
 |---|---|
 | Core loop (prompt → agent → live preview → follow-ups) | Working |
 | Reliability (sandbox lifetime, failures, refunds, polling) | Fixed (Phase 1 of the audit) |
-| Unit tests | 24 files, 153 tests, all passing (`npm test`) |
+| Unit tests | 25 files, 170 tests, all passing (`npm test`) |
 | Lint | Clean: 0 errors, 1 warning (`react-hooks/exhaustive-deps`) |
 | CI | GitHub Actions on every PR and push to `master`: Prisma validate, lint, tests, build |
 | Post-deploy check | `node scripts/smoke.mjs <url> --sync` |
@@ -67,9 +67,14 @@ Images, Database, Design Systems and Figma import shipped).
 - **Sign in / sign up** through Clerk.
 
 ### 4.2 Signed-in app shell
-- v0-style sidebar with an account menu, a search dialog, and recent chats and projects.
+- v0-style sidebar with an account menu, a workspace switcher (Personal or a team), a search
+  dialog, and recent chats and projects.
 - **Projects** (`/projects`, `/projects/[id]`): group chats. Create, rename, star and delete.
-  The project page also edits standing **Instructions** for every chat in that project.
+  The project page also edits standing **Instructions** for every chat in that project. Lists
+  follow the active workspace (Personal or a team).
+- **Team** (`/team`, `/invite/[token]`): create a team, invite by email (copy the accept link),
+  manage members. Every member can edit that team's projects. Deleting a team returns its
+  projects to each creator's Personal workspace.
 - **Chats** (`/chats`): list, rename, move into or out of a project, and delete. A chat with no
   project is a draft.
 - **Usage / credits** display: 5 generations per 30 days on the free plan, 100 on Pro. Running
@@ -154,6 +159,8 @@ Images, Database, Design Systems and Figma import shipped).
 
 ### 4.5 Data model (Prisma)
 `User 1:N Project 1:N Chat 1:N Message 1:1 Fragment (version)`, plus:
+- `Team` / `TeamMember` / `TeamInvite`: optional workspace above Project. `Project.teamId` is
+  null for Personal (owned by `userId`); team members see every project on that team.
 - `AgentStep`: live progress rows for each run.
 - `Attachment`: prompt images, stored as bytes.
 - `ChatEnvVar`: encrypted environment variables.
@@ -167,11 +174,12 @@ optional `designSystem` (the chat's wins over the project's).
 
 ## 5. Scope
 
-**In scope (built):** a single-user flow from prompt to working Next.js app, iterating on it,
-managing versions, and taking the app out of the platform: zip, GitHub, Vercel, or a share link.
+**In scope (built):** a flow from prompt to working Next.js app, iterating on it, managing
+versions, and taking the app out of the platform: zip, GitHub, Vercel, or a share link. An
+optional Team can own projects; members are invited by email (copy link). Credits stay per-user.
 
 **Out of scope today:**
-- Teams, seats and shared workspaces.
+- Per-chat Can View / Can Edit, shared credit pools, Clerk Organizations, Vercel seats.
 - Frameworks other than Next.js.
 - Backends other than a connected Postgres URL (no Neon OAuth, no row editor, no Upstash).
 - Other AI providers. The agent runs only on Gemini.

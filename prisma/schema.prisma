@@ -29,11 +29,54 @@ model User {
     projects Project[]
     chats    Chat[]
   designSystems DesignSystem[]
+  teamMemberships TeamMember[]
+  teamInvitesSent TeamInvite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
 
+// Optional workspace above Project. Members share that team's projects; Personal
+// projects keep teamId null and stay owned by Project.userId.
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  members  TeamMember[]
+  invites  TeamInvite[]
+  projects Project[]
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String // owner | member
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model TeamInvite {
+  id          String    @id @default(cuid())
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  email       String
+  token       String    @unique
+  role        String    @default("member")
+  invitedById String
+  invitedBy   User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([teamId])
+  @@index([email])
 }
 
 // A saved theme (brand colors, border radius, font) the user can apply to chats and
@@ -69,10 +112,16 @@ model Project {
   // Default theme for the project's chats (a chat's own design system overrides it).
   designSystemId String?
   designSystem   DesignSystem? @relation(fields: [designSystemId], references: [id], onDelete: SetNull)
+  // null = Personal (owned by userId). Set when the project belongs to a team.
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   chats Chat[]
+
+  @@index([userId])
+  @@index([teamId])
 }
 
 // One conversation and its versions. Chats without a project are drafts.

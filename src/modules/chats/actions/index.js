@@ -8,8 +8,10 @@ import { MessageRole, MessageType } from "@prisma/client";
 
 import { inngest } from "@/inngest/client";
 import db from "@/lib/db";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
 import { resolveUserTier, spendCredit } from "@/lib/consume-credit";
 import { ActionErrorCode, fail, ok } from "@/lib/action-result";
+import { chatListWhere, findAccessibleChat, findAccessibleProject, projectForNewChat } from "@/lib/teams";
 import { getCurrentUser } from "@/modules/auth/actions";
 import { getTemplate } from "@/templates/registry";
 import { parseImage } from "@/lib/attachments";
@@ -43,6 +45,13 @@ import {
 } from "@/lib/sandbox";
 
 const UNAUTHORIZED = () => fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
+const CHAT_NOT_FOUND = () => fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+
+const updateAccessibleChat = async (chatId, userId, data) => {
+  if (!(await findAccessibleChat(db, chatId, userId))) return 0;
+  const { count } = await db.chat.updateMany({ where: { id: chatId }, data });
+  return count;
+};
 const titleFrom = (prompt) => {
   const line = prompt.trim().split("\n")[0];
   return line.length > 60 ? `${line.slice(0, 57)}...` : line;
@@ -87,9 +96,13 @@ export const createChat = async (value, projectId = null, image = null, tierId =
   const parsed = parseImage(image);
   if (parsed.error) return fail(ActionErrorCode.INTERNAL, parsed.error);
 
-  if (projectId) {
-    const project = await db.project.findFirst({ where: { id: projectId, userId: user.id } });
-    if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
+  const workspace = await resolveActiveWorkspace(user.id);
+  const destination = await projectForNewChat(db, { userId: user.id, projectId, workspaceId: workspace });
+  if (destination.error) {
+    return fail(
+      destination.error.startsWith("Pick") ? ActionErrorCode.INVALID_INPUT : ActionErrorCode.NOT_FOUND,
+      destination.error
+    );
   }
 
   const { tier, error: tierError } = await resolveUserTier(tierId);
@@ -140,9 +153,9 @@ export const getChats = async (scope = "all") => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const where = { userId: user.id };
-  if (scope === "drafts") where.projectId = null;
-  else if (scope !== "all") where.projectId = scope;
+  const workspace = await resolveActiveWorkspace(user.id);
+  const where = chatListWhere({ userId: user.id, workspaceId: workspace, scope });
+  if (!where) return ok([]);
 
   try {
     const chats = await db.chat.findMany({
@@ -164,8 +177,9 @@ export const getChat = async (chatId) => {
   if (!user) return UNAUTHORIZED();
 
   try {
+    if (!(await findAccessibleChat(db, chatId, user.id))) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
     const chat = await db.chat.findFirst({
-      where: { id: chatId, userId: user.id },
+      where: { id: chatId },
       select: CHAT_DETAIL_SELECT,
     });
 
@@ -185,11 +199,8 @@ export const updateChatInstructions = async (chatId, value) => {
   const { instructions, error } = validateInstructions(value);
   if (error) return fail(ActionErrorCode.INVALID_INPUT, error);
 
-  const { count } = await db.chat.updateMany({
-    where: { id: chatId, userId: user.id },
-    data: { instructions: instructions || null },
-  });
-  return count ? ok({ id: chatId, instructions: instructions || null }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  const count = await updateAccessibleChat(chatId, user.id, { instructions: instructions || null });
+  return count ? ok({ id: chatId, instructions: instructions || null }) : CHAT_NOT_FOUND();
 };
 
 /** Applies a design system to a chat (or clears it with null). */
@@ -202,11 +213,8 @@ export const updateChatDesignSystem = async (chatId, designSystemId) => {
     if (!owned) return fail(ActionErrorCode.NOT_FOUND, "Design system not found.");
   }
 
-  const { count } = await db.chat.updateMany({
-    where: { id: chatId, userId: user.id },
-    data: { designSystemId: designSystemId || null },
-  });
-  return count ? ok({ id: chatId, designSystemId: designSystemId || null }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  const count = await updateAccessibleChat(chatId, user.id, { designSystemId: designSystemId || null });
+  return count ? ok({ id: chatId, designSystemId: designSystemId || null }) : CHAT_NOT_FOUND();
 };
 
 export const renameChat = async (chatId, title) => {
@@ -216,8 +224,8 @@ export const renameChat = async (chatId, title) => {
   const trimmed = title.trim();
   if (!trimmed) return fail(ActionErrorCode.INTERNAL, "Name cannot be empty.");
 
-  const { count } = await db.chat.updateMany({ where: { id: chatId, userId: user.id }, data: { title: trimmed.slice(0, 120) } });
-  return count ? ok({ id: chatId }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  const count = await updateAccessibleChat(chatId, user.id, { title: trimmed.slice(0, 120) });
+  return count ? ok({ id: chatId }) : CHAT_NOT_FOUND();
 };
 
 /** Moves a chat into a project, or back to drafts with projectId null. */
@@ -225,13 +233,12 @@ export const moveChat = async (chatId, projectId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  if (projectId) {
-    const project = await db.project.findFirst({ where: { id: projectId, userId: user.id } });
-    if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
+  if (projectId && !(await findAccessibleProject(db, projectId, user.id))) {
+    return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
   }
 
-  const { count } = await db.chat.updateMany({ where: { id: chatId, userId: user.id }, data: { projectId } });
-  return count ? ok({ id: chatId }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  const count = await updateAccessibleChat(chatId, user.id, { projectId });
+  return count ? ok({ id: chatId }) : CHAT_NOT_FOUND();
 };
 
 /** Adds the chat to favorites (listed first) or removes it. */
@@ -239,8 +246,8 @@ export const setChatStarred = async (chatId, starred) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const { count } = await db.chat.updateMany({ where: { id: chatId, userId: user.id }, data: { starred: !!starred } });
-  return count ? ok({ id: chatId, starred: !!starred }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  const count = await updateAccessibleChat(chatId, user.id, { starred: !!starred });
+  return count ? ok({ id: chatId, starred: !!starred }) : CHAT_NOT_FOUND();
 };
 
 /**
@@ -253,11 +260,10 @@ export const duplicateChat = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const source = await db.chat.findFirst({
-    where: { id: chatId, userId: user.id },
+  const source = await findAccessibleChat(db, chatId, user.id, {
     select: { title: true, projectId: true, instructions: true, envVars: { select: { key: true, valueEncrypted: true } } },
   });
-  if (!source) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  if (!source) return CHAT_NOT_FOUND();
 
   const latest = await getLatestFragment(chatId);
   if (!latest) return fail(ActionErrorCode.INVALID_INPUT, "This chat has no version to copy yet.");
@@ -304,8 +310,9 @@ export const deleteChat = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const { count } = await db.chat.deleteMany({ where: { id: chatId, userId: user.id } });
-  return count ? ok({ id: chatId }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  if (!(await findAccessibleChat(db, chatId, user.id))) return CHAT_NOT_FOUND();
+  const { count } = await db.chat.deleteMany({ where: { id: chatId } });
+  return count ? ok({ id: chatId }) : CHAT_NOT_FOUND();
 };
 
 /**
@@ -363,7 +370,7 @@ export const wakeChatSandbox = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { sandboxId: true } });
+  const chat = await findAccessibleChat(db, chatId, user.id, { select: { sandboxId: true } });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
   try {
@@ -403,7 +410,7 @@ export const getAppLogs = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { sandboxId: true } });
+  const chat = await findAccessibleChat(db, chatId, user.id, { select: { sandboxId: true } });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
   const fragment = await getLatestFragment(chatId);
@@ -436,7 +443,7 @@ export const runTerminalCommand = async (chatId, value) => {
   const { command, error: commandError } = validateCommand(value);
   if (commandError) return fail(ActionErrorCode.INVALID_INPUT, commandError);
 
-  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { sandboxId: true } });
+  const chat = await findAccessibleChat(db, chatId, user.id, { select: { sandboxId: true } });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
   const lastMessage = await db.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" }, select: { role: true } });
@@ -483,7 +490,7 @@ export const restoreVersion = async (chatId, fragmentId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { sandboxId: true } });
+  const chat = await findAccessibleChat(db, chatId, user.id, { select: { sandboxId: true } });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
   const [fragment, latest, lastMessage] = await Promise.all([
@@ -538,7 +545,7 @@ export const publishChat = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: PUBLISH_SELECT });
+  const chat = await findAccessibleChat(db, chatId, user.id, { select: PUBLISH_SELECT });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
   if (!isPublishConfigured()) return fail(ActionErrorCode.INTERNAL, "Publishing is not set up yet.");
   if (chat.publishStatus === "building") return fail(ActionErrorCode.INTERNAL, "A publish is already in progress.");
@@ -576,7 +583,7 @@ export const getPublishStatus = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  let chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: PUBLISH_SELECT });
+  let chat = await findAccessibleChat(db, chatId, user.id, { select: PUBLISH_SELECT });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
   const latest = await getLatestFragment(chatId);
 
@@ -609,7 +616,7 @@ export const shareChat = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { shareId: true } });
+  const chat = await findAccessibleChat(db, chatId, user.id, { select: { shareId: true } });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
   if (chat.shareId) return ok({ shareId: chat.shareId });
 
@@ -626,8 +633,8 @@ export const unshareChat = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const { count } = await db.chat.updateMany({ where: { id: chatId, userId: user.id }, data: { shareId: null } });
-  return count ? ok({ shareId: null }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+  const count = await updateAccessibleChat(chatId, user.id, { shareId: null });
+  return count ? ok({ shareId: null }) : CHAT_NOT_FOUND();
 };
 
 /**
@@ -639,7 +646,7 @@ export const saveCodeEdits = async (chatId, fragmentId, edits) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
 
-  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: { id: true } });
+  const chat = await findAccessibleChat(db, chatId, user.id, { select: { id: true } });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 
   const [latest, lastMessage] = await Promise.all([
@@ -666,7 +673,7 @@ export const saveCodeEdits = async (chatId, fragmentId, edits) => {
   }
 };
 
-const ownChat = (chatId, userId) => db.chat.findFirst({ where: { id: chatId, userId }, select: { id: true } });
+const ownChat = (chatId, userId) => findAccessibleChat(db, chatId, userId);
 
 /**
  * The chat's environment variables with masked values. Values are never sent back to the
@@ -756,11 +763,8 @@ export const getDatabaseStatus = async (chatId) => {
   if (!user) return UNAUTHORIZED();
 
   try {
-    const chat = await db.chat.findFirst({
-      where: { id: chatId, userId: user.id },
-      select: { databaseUrlEncrypted: true },
-    });
-    if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+    const chat = await findAccessibleChat(db, chatId, user.id, { select: { databaseUrlEncrypted: true } });
+    if (!chat) return CHAT_NOT_FOUND();
     if (!chat.databaseUrlEncrypted) return ok({ connected: false });
     try {
       return ok(databaseStatusFromUrl(decryptSecret(chat.databaseUrlEncrypted)));
@@ -796,7 +800,7 @@ export const setDatabaseUrl = async (chatId, value) => {
     const envError = await upsertDatabaseEnv(chatId, url);
     if (envError) return envError;
     await db.chat.updateMany({
-      where: { id: chatId, userId: user.id },
+      where: { id: chatId },
       data: { databaseUrlEncrypted: encryptSecret(url) },
     });
     await syncChatEnvToSandbox(chatId);
@@ -814,7 +818,7 @@ export const disconnectDatabase = async (chatId) => {
 
   try {
     await db.chat.updateMany({
-      where: { id: chatId, userId: user.id },
+      where: { id: chatId },
       data: { databaseUrlEncrypted: null },
     });
     await db.chatEnvVar.deleteMany({ where: { chatId, key: DATABASE_ENV_KEY } });
@@ -832,11 +836,8 @@ export const listDatabaseSchema = async (chatId) => {
   if (!user) return UNAUTHORIZED();
 
   try {
-    const chat = await db.chat.findFirst({
-      where: { id: chatId, userId: user.id },
-      select: { databaseUrlEncrypted: true },
-    });
-    if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+    const chat = await findAccessibleChat(db, chatId, user.id, { select: { databaseUrlEncrypted: true } });
+    if (!chat) return CHAT_NOT_FOUND();
     if (!chat.databaseUrlEncrypted) {
       return fail(ActionErrorCode.INVALID_INPUT, "Connect a database in Settings first.");
     }
@@ -887,7 +888,7 @@ const GITHUB_CHAT_SELECT = { id: true, title: true, githubRepo: true, githubBran
 export const getGithubStatus = async (chatId) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
-  const chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: GITHUB_CHAT_SELECT });
+  const chat = await findAccessibleChat(db, chatId, user.id, { select: GITHUB_CHAT_SELECT });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
   return ok(await githubView(await githubAccount(user.id), chat));
 };
@@ -899,7 +900,7 @@ export const getGithubStatus = async (chatId) => {
 export const pushToGithub = async (chatId, { repoName, isPrivate = true } = {}) => {
   const user = await getCurrentUser();
   if (!user) return UNAUTHORIZED();
-  let chat = await db.chat.findFirst({ where: { id: chatId, userId: user.id }, select: GITHUB_CHAT_SELECT });
+  let chat = await findAccessibleChat(db, chatId, user.id, { select: GITHUB_CHAT_SELECT });
   if (!chat) return fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
   const account = await githubAccount(user.id);
   if (!account.githubTokenEncrypted) return fail(ActionErrorCode.INTERNAL, "Connect your GitHub account first.");

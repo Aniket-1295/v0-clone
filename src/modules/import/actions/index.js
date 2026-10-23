@@ -6,6 +6,8 @@ import { ActionErrorCode, fail, ok } from "@/lib/action-result";
 import { decryptSecret } from "@/lib/secrets";
 import { downloadZipball, isGithubConfigured, listBranches, listRepositories } from "@/lib/github";
 import { MAX_ZIP_BYTES, filesFromZipball, normalizeFolder, selectNextApp } from "@/lib/github-import";
+import { resolveActiveWorkspace } from "@/lib/active-workspace";
+import { projectForNewChat } from "@/lib/teams";
 import { getCurrentUser } from "@/modules/auth/actions";
 
 const UNAUTHORIZED = () => fail(ActionErrorCode.UNAUTHORIZED, "Please sign in first.");
@@ -87,9 +89,13 @@ export const importGithubRepo = async ({ repo, branch, folder = "", projectId = 
   const cleanFolder = normalizeFolder(folder);
   if (cleanFolder === null) return fail(ActionErrorCode.INVALID_INPUT, "That folder name is not valid.");
 
-  if (projectId) {
-    const project = await db.project.findFirst({ where: { id: projectId, userId: user.id }, select: { id: true } });
-    if (!project) return fail(ActionErrorCode.NOT_FOUND, "Project not found.");
+  const workspace = await resolveActiveWorkspace(user.id);
+  const destination = await projectForNewChat(db, { userId: user.id, projectId, workspaceId: workspace });
+  if (destination.error) {
+    return fail(
+      destination.error.startsWith("Pick") ? ActionErrorCode.INVALID_INPUT : ActionErrorCode.NOT_FOUND,
+      destination.error
+    );
   }
 
   const { token, error } = await githubTokenFor(user.id);
