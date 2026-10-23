@@ -15,6 +15,7 @@ import {
   GithubIcon,
   HomeIcon,
   LayoutTemplateIcon,
+  SwatchBookIcon,
   ListFilterIcon,
   LogOutIcon,
   MessageSquarePlusIcon,
@@ -71,6 +72,7 @@ const NAV = [
   { label: "Projects", href: "/projects", icon: FolderIcon },
   { label: "Chats", href: "/chats", icon: MessagesSquareIcon },
   { label: "Templates", href: "/templates", icon: LayoutTemplateIcon },
+  { label: "Design Systems", href: "/design-systems", icon: SwatchBookIcon },
 ];
 
 const isActive = (pathname, href) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
