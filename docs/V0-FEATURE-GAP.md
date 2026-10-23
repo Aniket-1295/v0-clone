@@ -49,7 +49,7 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 |---|---|---|
 | Search, Home, Projects, Chats, Templates | ✅ | |
 | Drafts + Projects in sidebar | ✅ | |
-| **Design Systems** | ❌ | Saved theme (colours, fonts, radius, components) applied to new chats |
+| **Design Systems** | ✅ | Saved theme applied to a chat/project: simple (colour, radius, font) or a full shadcn token set imported from CSS, with starter presets (PR #57, #58). Importing a whole component library (v0 "DS 2.0") not yet |
 | Workspace / team switcher ("serviceos") | ❌ | Needs teams |
 | **Invite** (collaborators) | ❌ | Needs teams and roles |
 | Star a chat | ✅ | Projects and chats can be starred (favorites listed first) |
@@ -72,8 +72,8 @@ Ordered by value to users and how much existing code each one reuses.
 7. ✅ **Model tiers**: Mini / Pro / Max mapped to Gemini models, limited by plan, with credit costs. (PR #52, merged)
 8. ✅ **Generate Images**: the agent can create images for the app. (PR #53, merged)
 9. ✅ **Small polish**: favorite and duplicate chats, searchable project picker. (PR #54, merged)
-10. 🟡 **Database**: connect a Postgres URL and browse tables the agent can see (`feat/database`). Neon OAuth / Upstash later.
-11. **Design Systems**.
+10. ✅ **Database**: connect a Postgres URL and browse tables the agent can see (PR #56, merged). Neon OAuth / Upstash later.
+11. ✅ **Design Systems**: simple themes + a full shadcn token set imported from CSS, with starter presets (PR #57, #58). Component-library import ("DS 2.0") later.
 12. **Figma import**.
 13. **Teams + Invite** (workspace switcher, roles, shared projects) — largest; changes the data model.
 

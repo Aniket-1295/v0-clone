@@ -1,12 +1,12 @@
 # v0-clone: project status, scope and features
 
-Snapshot taken 22 Oct 2026. `master` is at commit `21b9e4b` after 55 merged PRs and 154 commits
-(includes the production schema-drift fix, PR #55). **Database** is built on `feat/database`
-(not on `master` yet). Live deployment: https://v0-clone-alpha-kohl.vercel.app
+Snapshot taken 23 Oct 2026. `master` is at commit `4cb036e` after 58 merged PRs and 162 commits.
+Live deployment: https://v0-clone-alpha-kohl.vercel.app
 
-Recently shipped on `master`: through small polish (PR #54) and the prod RSC/schema fix
-(PR #55). Next: **Database** — connect a Postgres URL per chat, browse tables, and let the
-agent see the schema.
+Recently shipped on `master`: **Database** (a Postgres URL per chat with a read-only table
+browser) and **Design Systems** — a saved theme applied to new apps, now with a full shadcn
+token set imported from CSS (PR #57, #58). Next: see the open items in
+[V0-FEATURE-GAP.md](V0-FEATURE-GAP.md).
 
 ## 1. What the project is
 
@@ -21,7 +21,7 @@ downloaded, shared, pushed to GitHub, or published to a permanent Vercel URL.
 |---|---|
 | Core loop (prompt → agent → live preview → follow-ups) | Working |
 | Reliability (sandbox lifetime, failures, refunds, polling) | Fixed (Phase 1 of the audit) |
-| Unit tests | 17 files, 90 tests on `master`, all passing (`npm test`) |
+| Unit tests | 23 files, 140 tests on `master`, all passing (`npm test`) |
 | Lint | Clean: 0 errors, 1 warning (`react-hooks/exhaustive-deps`) |
 | CI | GitHub Actions on every PR and push to `master`: Prisma validate, lint, tests, build |
 | Post-deploy check | `node scripts/smoke.mjs <url> --sync` |
@@ -33,8 +33,8 @@ The audit in [PRODUCT-READINESS-AUDIT.md](PRODUCT-READINESS-AUDIT.md) (17 Oct 20
 project at 30–35% of a sellable v1. Since then all of Phase 1 has shipped, most of the Phase 3
 feature list, and most of the Phase 2 production-hygiene list (webhook onboarding, Sentry, legal
 and SEO pages). A separate [v0.app feature gap](V0-FEATURE-GAP.md) doc tracks parity work with
-v0's workspace (panels through Settings, Instructions, GitHub import, model tiers and Generate
-Images shipped; Database on `feat/database`; Design Systems next).
+v0's workspace (panels through Settings, Instructions, GitHub import, model tiers, Generate
+Images, Database and Design Systems shipped).
 
 ## 3. Tech stack
 
@@ -126,6 +126,13 @@ Images shipped; Database on `feat/database`; Design Systems next).
   Settings connects or disconnects it. The Database panel lists tables and columns (read-only).
   The URL is injected as `DATABASE_URL` for the sandbox and publish. The agent sees table names
   only, never the URL or rows.
+- **Design Systems** (PR #57, #58): a saved theme applied to a chat or a project so new apps are
+  built in that look (a chat's own theme overrides its project default). A theme is either simple
+  (brand colours, radius, font) or a full shadcn token set **imported from CSS** — paste a
+  `globals.css` (e.g. from tweakcn) and the whole oklch token set, light and dark, is captured. It
+  is written into the sandbox's `globals.css` (one marker block, replaced on rebuild) so every
+  shadcn component re-brands, and summarised in the agent's system prompt so custom markup matches.
+  Managed on the `/design-systems` page; starter presets included.
 - **Share**: a read-only public link (`/share/[shareId]`) that can be revoked.
 - **Publish**: one click deploys the app to its own Vercel project at a permanent URL, with
   build-status tracking.
@@ -144,9 +151,11 @@ Images shipped; Database on `feat/database`; Design Systems next).
 - `Attachment`: prompt images, stored as bytes.
 - `ChatEnvVar`: encrypted environment variables.
 - `Usage`: the credit counter.
+- `DesignSystem`: a saved theme (colours, radius, font, and an optional full `tokens` JSON set).
 
 The `Chat` table also holds sandbox, publish, share, GitHub and an encrypted database URL.
-`Project` and `Chat` each have optional `instructions` — standing rules the agent follows.
+`Project` and `Chat` each have optional `instructions` — standing rules the agent follows — and an
+optional `designSystem` (the chat's wins over the project's).
 
 ## 5. Scope
 
