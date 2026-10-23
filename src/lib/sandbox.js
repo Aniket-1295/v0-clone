@@ -3,6 +3,7 @@ import db from "@/lib/db";
 import { MessageRole, MessageType } from "@prisma/client";
 import { getChatEnv, SANDBOX_ENV_PATH, toEnvFile } from "@/lib/env-vars";
 import { DESIGN_SCRIPT, DESIGN_SCRIPT_FILE } from "@/lib/design-mode-script";
+import { applyBrandCss, loadChatDesignSystem } from "@/lib/design-system";
 
 // v0-version-final-next (1 GB) plus npm settings, with 2 GB of memory: next dev uses ~700 MB
 // once warm, which left npm installs too little room. See sandbox-templates/next-js.
@@ -225,6 +226,26 @@ export const getLatestFragment = (chatId) =>
 /** Template chats preview our hosted template page and need no sandbox until a follow-up. */
 export const isHostedPreview = (fragment) => !!fragment?.sandboxUrl?.includes("/templates-preview/");
 
+// globals.css lives here in a stock app, or under src/ in an imported one.
+const GLOBALS_CANDIDATES = [`${APP_ROOT}/app/globals.css`, `${APP_ROOT}/src/app/globals.css`];
+
+/**
+ * Applies the chat's design system to the freshly built sandbox by overriding the brand
+ * tokens in globals.css. Every shadcn component then inherits the brand. Idempotent via the
+ * marker in applyBrandCss, so rebuilds re-theme (if the system changed) without duplicating.
+ */
+const applyChatDesignSystem = async (sandbox, chatId) => {
+  const ds = await loadChatDesignSystem(db, chatId);
+  if (!ds) return;
+  for (const path of GLOBALS_CANDIDATES) {
+    const css = await sandbox.files.read(path).catch(() => null);
+    if (css == null) continue;
+    const branded = applyBrandCss(css, ds);
+    if (branded !== css) await sandbox.files.write(path, branded);
+    return;
+  }
+};
+
 /**
  * Returns the chat's sandbox, recreating it from the latest fragment when it has expired.
  * On a rebuild the chat and the latest fragment are pointed at the new sandbox so the
@@ -243,6 +264,7 @@ export const getOrCreateChatSandbox = async (chatId) => {
 
   const fragment = await getLatestFragment(chatId);
   const sandbox = await createSandboxFromFiles(fragment?.files, { env: await getChatEnv(chatId) });
+  await applyChatDesignSystem(sandbox, chatId);
 
   await db.chat.update({
     where: { id: chatId },

@@ -58,11 +58,17 @@ const CHAT_LIST_SELECT = {
   project: { select: { id: true, name: true } },
 };
 
+const DESIGN_SYSTEM_BRIEF = { id: true, name: true, primaryColor: true, accentColor: true };
+
 const CHAT_DETAIL_SELECT = {
   ...CHAT_LIST_SELECT,
   shareId: true,
   instructions: true,
-  project: { select: { id: true, name: true, instructions: true } },
+  designSystemId: true,
+  designSystem: { select: DESIGN_SYSTEM_BRIEF },
+  project: {
+    select: { id: true, name: true, instructions: true, designSystem: { select: DESIGN_SYSTEM_BRIEF } },
+  },
 };
 
 /**
@@ -184,6 +190,23 @@ export const updateChatInstructions = async (chatId, value) => {
     data: { instructions: instructions || null },
   });
   return count ? ok({ id: chatId, instructions: instructions || null }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
+};
+
+/** Applies a design system to a chat (or clears it with null). */
+export const updateChatDesignSystem = async (chatId, designSystemId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  if (designSystemId) {
+    const owned = await db.designSystem.findFirst({ where: { id: designSystemId, userId: user.id }, select: { id: true } });
+    if (!owned) return fail(ActionErrorCode.NOT_FOUND, "Design system not found.");
+  }
+
+  const { count } = await db.chat.updateMany({
+    where: { id: chatId, userId: user.id },
+    data: { designSystemId: designSystemId || null },
+  });
+  return count ? ok({ id: chatId, designSystemId: designSystemId || null }) : fail(ActionErrorCode.NOT_FOUND, "Chat not found.");
 };
 
 export const renameChat = async (chatId, title) => {

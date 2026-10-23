@@ -1,6 +1,7 @@
 "use client";
 
 import DatabaseSection from "./database-section";
+import DesignSystemSection from "./design-system-section";
 import EnvVarsSection from "./env-vars-section";
 import GithubSection from "./github-section";
 import InstructionsSection from "./instructions-section";
@@ -44,6 +45,14 @@ export default function SettingsView({ chatId }) {
               value={chat?.instructions ?? ""}
               title="Chat instructions"
               description="Rules v0 follows on every generation in this chat."
+            />
+          </section>
+          <section className="overflow-hidden rounded-lg border bg-card">
+            <DesignSystemSection
+              scope="chat"
+              id={chatId}
+              value={chat?.designSystemId ?? ""}
+              projectDefault={project?.designSystem ?? null}
             />
           </section>
           <section className="overflow-hidden rounded-lg border bg-card">

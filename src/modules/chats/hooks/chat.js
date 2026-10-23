@@ -30,6 +30,7 @@ import {
   shareChat,
   unshareChat,
   updateChatInstructions,
+  updateChatDesignSystem,
   wakeChatSandbox,
 } from "../actions";
 
@@ -85,6 +86,14 @@ export const useUpdateChatInstructions = (chatId) => {
       );
       queryClient.invalidateQueries({ queryKey: ["chats"] });
     },
+  });
+};
+
+export const useUpdateChatDesignSystem = (chatId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (designSystemId) => unwrap(await updateChatDesignSystem(chatId, designSystemId)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["chats", "one", chatId] }),
   });
 };
 /** mutateAsync([chatId, projectId|null]) */
