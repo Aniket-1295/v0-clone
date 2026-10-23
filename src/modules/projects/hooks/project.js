@@ -8,6 +8,7 @@ import {
   renameProject,
   setProjectStarred,
   updateProjectInstructions,
+  updateProjectDesignSystem,
 } from "../actions";
 
 export const useGetProjects = ({ enabled = true } = {}) =>
@@ -55,6 +56,17 @@ export const useUpdateProjectInstructions = (projectId) => {
         prev ? { ...prev, instructions: data.instructions } : prev
       );
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+    },
+  });
+};
+
+export const useUpdateProjectDesignSystem = (projectId) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (designSystemId) => unwrap(await updateProjectDesignSystem(projectId, designSystemId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
       queryClient.invalidateQueries({ queryKey: ["chats"] });
     },
   });

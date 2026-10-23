@@ -53,6 +53,7 @@ export const getProjectById = async (projectId) => {
       where: { id: projectId, userId: user.id },
       include: {
         chats: { orderBy: { updatedAt: "desc" }, select: { id: true, title: true, updatedAt: true } },
+        designSystem: { select: { id: true, name: true, primaryColor: true, accentColor: true } },
       },
     });
 
@@ -102,6 +103,25 @@ export const updateProjectInstructions = async (projectId, value) => {
   });
   return count
     ? ok({ id: projectId, instructions: instructions || null })
+    : fail(ActionErrorCode.NOT_FOUND, "Project not found.");
+};
+
+/** Sets the project's default design system (or clears it with null). */
+export const updateProjectDesignSystem = async (projectId, designSystemId) => {
+  const user = await getCurrentUser();
+  if (!user) return UNAUTHORIZED();
+
+  if (designSystemId) {
+    const owned = await db.designSystem.findFirst({ where: { id: designSystemId, userId: user.id }, select: { id: true } });
+    if (!owned) return fail(ActionErrorCode.NOT_FOUND, "Design system not found.");
+  }
+
+  const { count } = await db.project.updateMany({
+    where: { id: projectId, userId: user.id },
+    data: { designSystemId: designSystemId || null },
+  });
+  return count
+    ? ok({ id: projectId, designSystemId: designSystemId || null })
     : fail(ActionErrorCode.NOT_FOUND, "Project not found.");
 };
 
