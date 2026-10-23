@@ -8,6 +8,7 @@ import {
   ArrowUpIcon,
   CheckIcon,
   ChevronDownIcon,
+  FigmaIcon,
   FolderIcon,
   FolderPlusIcon,
   GithubIcon,
@@ -48,6 +49,7 @@ import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
 import { useCreateChat } from "@/modules/chats/hooks/chat";
 import { useGetProjectById, useGetProjects } from "@/modules/projects/hooks/project";
 import InstructionsSection from "@/modules/projects/components/instructions-section";
+import FigmaImportDialog from "@/modules/figma/components/figma-import-dialog";
 import { useAppShell } from "./app-shell";
 import ModelPicker, { useModelTier } from "./model-picker";
 import { GenerateImagesChip, GenerateImagesMenuItem } from "./generate-images-toggle";
@@ -70,6 +72,7 @@ export default function AppPrompt({ initialProjectId = null }) {
   const [focused, setFocused] = useState(false);
   const [projectId, setProjectId] = useState(initialProjectId);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [figmaOpen, setFigmaOpen] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const { data: projects } = useGetProjects();
   const { data: projectDetail } = useGetProjectById(projectId, { enabled: instructionsOpen && !!projectId });
@@ -152,6 +155,9 @@ export default function AppPrompt({ initialProjectId = null }) {
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/import"><GithubIcon className="size-4" /> Import from GitHub</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setFigmaOpen(true)}>
+              <FigmaIcon className="size-4" /> Import from Figma
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={openNewProject}>
               <FolderPlusIcon className="size-4" /> New project
@@ -239,6 +245,8 @@ export default function AppPrompt({ initialProjectId = null }) {
           )}
         </div>
       </div>
+
+      <FigmaImportDialog open={figmaOpen} onOpenChange={setFigmaOpen} initialProjectId={projectId} />
 
       <Dialog open={instructionsOpen} onOpenChange={setInstructionsOpen}>
         <DialogContent className="overflow-hidden p-0 sm:max-w-lg">

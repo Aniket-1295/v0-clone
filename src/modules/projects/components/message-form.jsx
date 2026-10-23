@@ -2,7 +2,7 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextAreaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, DatabaseIcon, ImagePlusIcon, ListChecksIcon, PlusIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, DatabaseIcon, FigmaIcon, ImagePlusIcon, ListChecksIcon, PlusIcon, SquareIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
 import ModelPicker, { useModelTier } from "@/modules/app/components/model-picker";
 import { GenerateImagesChip, GenerateImagesMenuItem } from "@/modules/app/components/generate-images-toggle";
 import { useGenerateImages } from "@/hooks/use-stored-preference";
+import FigmaImportDialog from "@/modules/figma/components/figma-import-dialog";
 
 
 // Empty is allowed when an image is attached (the prompt then asks to recreate it).
@@ -44,6 +45,7 @@ const IMAGE_ONLY_PROMPT = "Recreate this design.";
 // While a generation runs (isGenerating) the send button becomes Stop.
 const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, onOpenInstructions, onOpenDatabase}) => {
   const [isFocused, setIsFocused] = useState(false);
+  const [figmaOpen, setFigmaOpen] = useState(false);
   const router = useRouter();
 
   const {mutateAsync , isPending} = useCreateMessages(chatId)
@@ -150,6 +152,9 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, 
                 <DropdownMenuItem onSelect={() => onOpenDatabase?.()}>
                   <DatabaseIcon className="size-4" /> Database
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setFigmaOpen(true)}>
+                  <FigmaIcon className="size-4" /> Import from Figma
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={attachment.openPicker}>
                   <ImagePlusIcon className="size-4" /> Attach image
                 </DropdownMenuItem>
@@ -195,6 +200,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, 
             </div>
          </div>
         </form>
+        <FigmaImportDialog open={figmaOpen} onOpenChange={setFigmaOpen} chatId={chatId} />
       </Form>
    
   );

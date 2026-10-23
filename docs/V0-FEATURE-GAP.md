@@ -14,7 +14,7 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | **Diff** (changes between versions) | ✅ | Per-file `+/-` and a line-by-line diff from version snapshots |
 | **Logs** (dev server / build output) | ✅ | Next.js server + browser console from the sandbox, filterable |
 | **Terminal** (run commands) | ✅ | One-shot commands in the chat's sandbox; blocked during a generation |
-| **Settings** (chat settings panel) | ✅ | Instructions, env vars, database, share, GitHub and publish; Share + Publish stay in the header |
+| **Settings** (chat settings panel) | ✅ | Instructions, env vars, database, share, Figma, GitHub and publish; Share + Publish stay in the header |
 | **Database** (connect Supabase / Neon / Upstash, browse data) | 🟡 | Postgres URL per chat, read-only table browser; no Neon OAuth, Supabase app or Upstash yet |
 | Add/close panels with "+" | ✅ | Preview stays open; Code / Diff / Logs / Terminal / Database / Settings can be added or closed |
 
@@ -26,7 +26,7 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | Voice dictation | ✅ | |
 | **Instructions** (custom rules the AI always follows) | ✅ | Per project and per chat, added to the system prompt; chat wins on conflict |
 | **Generate Images** (AI images inside the app) | 🟡 | "+" menu switch; agent tool stores images in our DB, served at `/api/images/<id>`; needs a paid Gemini key — PR open |
-| **Import from Figma** | ❌ | Needs a Figma token; frame → image/structure → agent |
+| **Import from Figma** | ✅ | PAT in Settings; paste a file or frame URL; exported frame image + structure go to the agent (one credit) |
 | Skills | ❌ | Reusable prompt packs; can follow Instructions |
 | MCPs | ❌ | Connect tools to the agent; large, later |
 | Auto Permissions | ⛔ | Specific to v0's agent; not needed for ours |
@@ -40,6 +40,7 @@ Legend: ✅ we have it · 🟡 partly · ❌ missing · ⛔ not possible for us
 | Blank chat | ✅ | |
 | Start from template | ✅ | 12 templates |
 | **Import from GitHub** | ✅ | Pick repo, branch and folder; its Next.js app becomes version 1 (PR #50) |
+| **Import from Figma** | ✅ | `/import/figma`, home `+` dialog and in-chat follow-up; PAT, then a file or frame URL |
 | Project picker with search + "Create new project" | ✅ | Picker has search and New project |
 | Prompt chips (Contact Form, Mini Game, ...) | ✅ | |
 
@@ -74,7 +75,7 @@ Ordered by value to users and how much existing code each one reuses.
 9. ✅ **Small polish**: favorite and duplicate chats, searchable project picker. (PR #54, merged)
 10. ✅ **Database**: connect a Postgres URL and browse tables the agent can see (PR #56, merged). Neon OAuth / Upstash later.
 11. ✅ **Design Systems**: simple themes + a full shadcn token set imported from CSS, with starter presets (PR #57, #58). Component-library import ("DS 2.0") later.
-12. **Figma import**.
+12. ✅ **Figma import**: personal access token, file/frame URL, frame image + structure → agent.
 13. **Teams + Invite** (workspace switcher, roles, shared projects) — largest; changes the data model.
 
 Not planned: ChatGPT plan, Auto Permissions, MCPs (revisit after Instructions and Skills).

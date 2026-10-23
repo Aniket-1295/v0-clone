@@ -141,19 +141,25 @@ export const stopGeneration = async (chatId) => {
   if (prompt?.role !== MessageRole.USER) return ok({ stopped: false });
 
   try {
-    await inngest.send({ name: "code-agent/cancel", data: { chatId } });
-
     const { credits } = getTier(prompt.modelTier);
     // The reply ends the generation for the UI; the run checks for it before saving.
+    // Do this before talking to Inngest: if the dev server is down, send() throws
+    // ECONNREFUSED and the user would otherwise be stuck on a spinning Stop.
     await db.message.create({
       data: { chatId, content: `Stopped. ${refundNote(credits)}`, role: MessageRole.ASSISTANT, type: MessageType.RESULT },
     });
     await closeRunningSteps({ promptId: prompt.id }, "stopped");
     await refundCredits(user.clerkId, credits);
-
-    return ok({ stopped: true });
   } catch (error) {
     console.error("stopGeneration failed:", error);
     return fail(ActionErrorCode.INTERNAL, "Could not stop the generation. Please try again.");
   }
+
+  try {
+    await inngest.send({ name: "code-agent/cancel", data: { chatId } });
+  } catch (error) {
+    console.error("Could not cancel the Inngest run (generation is already stopped in the chat):", error);
+  }
+
+  return ok({ stopped: true });
 };
