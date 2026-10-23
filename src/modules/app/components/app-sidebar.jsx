@@ -6,9 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useTheme } from "next-themes";
 import {
-  CheckIcon,
   ChevronDownIcon,
-  ChevronsUpDownIcon,
   CrownIcon,
   FigmaIcon,
   FolderIcon,
@@ -30,6 +28,7 @@ import {
   StarIcon,
   SunIcon,
   UserIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import {
@@ -66,6 +65,8 @@ import { useGetChats } from "@/modules/chats/hooks/chat";
 import { useGetProjects } from "@/modules/projects/hooks/project";
 import { useStatus } from "@/modules/usage/hooks/usage";
 import ChatActions from "@/modules/chats/components/chat-actions";
+import WorkspaceSwitcher from "@/modules/teams/components/workspace-switcher";
+import { useActiveWorkspace } from "@/modules/teams/hooks";
 import { useAppShell } from "./app-shell";
 
 const NAV = [
@@ -80,34 +81,6 @@ const isActive = (pathname, href) => (href === "/" ? pathname === "/" : pathname
 
 const displayName = (user) =>
   user?.username || user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress?.split("@")[0] || "You";
-
-const WorkspaceSwitcher = () => {
-  const { user } = useUser();
-  const name = displayName(user);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-sidebar-accent cursor-pointer">
-        <span className="size-6 shrink-0 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-sky-400" />
-        <span className="truncate">{name}</span>
-        <ChevronsUpDownIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Workspaces</DropdownMenuLabel>
-        <DropdownMenuItem>
-          <span className="size-5 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-sky-400" />
-          <span className="truncate">{name}</span>
-          <span className="ml-1 text-xs text-muted-foreground">Personal</span>
-          <CheckIcon className="ml-auto size-4" />
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/pricing"><CrownIcon className="size-4" /> Upgrade plan</Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-};
 
 const NewChatButton = () => {
   const { openNewProject } = useAppShell();
@@ -148,8 +121,10 @@ const EmptyBox = ({ children }) => (
 );
 
 const DraftsGroup = ({ pathname }) => {
+  const { isPersonal } = useActiveWorkspace();
   const [open, setOpen] = useState(true);
   const { data: drafts, isPending } = useGetChats("drafts");
+  if (!isPersonal) return null;
 
   return (
     <SidebarGroup>
@@ -386,6 +361,8 @@ export default function AppSidebar() {
   const router = useRouter();
   const { toggleSidebar } = useSidebar();
   const { openSearch } = useAppShell();
+  const { isPersonal } = useActiveWorkspace();
+  const nav = isPersonal ? NAV : [...NAV, { label: "Team", href: "/team", icon: UsersIcon }];
 
   return (
     <Sidebar collapsible="offcanvas" className="dark:bg-black [&_[data-sidebar=sidebar]]:dark:bg-black">
@@ -410,7 +387,7 @@ export default function AppSidebar() {
                 <kbd className="ml-auto rounded border px-1 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            {NAV.map(({ label, href, icon: Icon }) => (
+            {nav.map(({ label, href, icon: Icon }) => (
               <SidebarMenuItem key={href}>
                 <SidebarMenuButton asChild isActive={isActive(pathname, href)}>
                   <Link href={href} onClick={() => href === pathname && router.refresh()}>

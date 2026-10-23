@@ -12,8 +12,9 @@ import { closeRunningSteps } from "@/inngest/progress";
 import { parseImage } from "@/lib/attachments";
 import { validatePrompt } from "@/lib/generation-limits";
 import { checkNoRunningGeneration } from "@/lib/generation-guard";
+import { findAccessibleChat } from "@/lib/teams";
 
-const findOwnChat = (chatId, userId) => db.chat.findFirst({ where: { id: chatId, userId } });
+const findOwnChat = (chatId, userId) => findAccessibleChat(db, chatId, userId);
 
 /**
  * Sends a follow-up prompt (optionally with an image to recreate) and kicks off generation

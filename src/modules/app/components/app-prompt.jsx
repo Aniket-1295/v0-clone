@@ -50,6 +50,7 @@ import { useCreateChat } from "@/modules/chats/hooks/chat";
 import { useGetProjectById, useGetProjects } from "@/modules/projects/hooks/project";
 import InstructionsSection from "@/modules/projects/components/instructions-section";
 import FigmaImportDialog from "@/modules/figma/components/figma-import-dialog";
+import { useActiveWorkspace } from "@/modules/teams/hooks";
 import { useAppShell } from "./app-shell";
 import ModelPicker, { useModelTier } from "./model-picker";
 import { GenerateImagesChip, GenerateImagesMenuItem } from "./generate-images-toggle";
@@ -76,6 +77,7 @@ export default function AppPrompt({ initialProjectId = null }) {
   const [projectQuery, setProjectQuery] = useState("");
   const { data: projects } = useGetProjects();
   const { data: projectDetail } = useGetProjectById(projectId, { enabled: instructionsOpen && !!projectId });
+  const { isPersonal } = useActiveWorkspace();
   const createChat = useCreateChat();
   const { tier } = useModelTier();
   const [generateImages] = useGenerateImages();
@@ -87,7 +89,8 @@ export default function AppPrompt({ initialProjectId = null }) {
   const hasText = value.trim().length > 0;
   const tooLong = isPromptTooLong(value);
   const hasContent = hasText || !!attachment.image;
-  const canSend = hasContent && !attachment.processing && !tooLong;
+  const needsProject = !isPersonal && !projectId;
+  const canSend = hasContent && !attachment.processing && !tooLong && !needsProject;
 
   const openInstructions = () => {
     if (!projectId) {
@@ -98,6 +101,10 @@ export default function AppPrompt({ initialProjectId = null }) {
   };
 
   const submit = async () => {
+    if (needsProject) {
+      toast.info("Pick a project first. Team chats cannot be drafts.");
+      return;
+    }
     if (!canSend || createChat.isPending) return;
     try {
       const chat = await createChat.mutateAsync([value.trim() || IMAGE_ONLY_PROMPT, projectId, attachment.image, tier.id, generateImages]);
@@ -172,7 +179,7 @@ export default function AppPrompt({ initialProjectId = null }) {
           <PromptLength text={value} className="mr-1" />
           <DropdownMenu onOpenChange={(open) => !open && setProjectQuery("")}>
             <DropdownMenuTrigger className={cn(ghostButton, "max-w-44")}>
-              <span className="truncate">{project ? project.name : "Project"}</span>
+              <span className="truncate">{project ? project.name : isPersonal ? "Project" : "Pick a project"}</span>
               <ChevronDownIcon className="size-3.5 shrink-0" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-80 w-56 overflow-y-auto">
@@ -192,7 +199,7 @@ export default function AppPrompt({ initialProjectId = null }) {
                   />
                 </div>
               )}
-              {!query && (
+              {!query && isPersonal && (
                 <DropdownMenuItem onSelect={() => setProjectId(null)}>
                   <InboxIcon className="size-4" /> No project (Drafts)
                   {!projectId && <CheckIcon className="ml-auto size-4" />}

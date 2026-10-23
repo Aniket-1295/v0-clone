@@ -11,6 +11,7 @@ import { showActionError } from "@/lib/show-action-error";
 import { useGenerateImages } from "@/hooks/use-stored-preference";
 import { useModelTier } from "@/modules/app/components/model-picker";
 import { useGetProjects } from "@/modules/projects/hooks/project";
+import { useActiveWorkspace } from "@/modules/teams/hooks";
 import {
   useConnectFigma,
   useFigmaStatus,
@@ -35,6 +36,7 @@ export default function FigmaImportForm({
   const preview = usePreviewFigmaUrl();
   const importing = useImportFigmaFrame();
   const { data: projects } = useGetProjects();
+  const { isPersonal } = useActiveWorkspace();
   const { tier } = useModelTier();
   const [generateImages] = useGenerateImages();
 
@@ -93,6 +95,10 @@ export default function FigmaImportForm({
   const onImport = async (event) => {
     event.preventDefault();
     if (!selectedId || importing.isPending) return;
+    if (!chatId && !isPersonal && !projectId) {
+      setError("Pick a project first. Team chats cannot be drafts.");
+      return;
+    }
     setError(null);
     try {
       const result = await importing.mutateAsync({
@@ -230,7 +236,8 @@ export default function FigmaImportForm({
             className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-foreground/30"
             aria-label="Project"
           >
-            <option value="">No project (Drafts)</option>
+            {isPersonal && <option value="">No project (Drafts)</option>}
+            {!isPersonal && <option value="">Pick a project</option>}
             {projects?.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}

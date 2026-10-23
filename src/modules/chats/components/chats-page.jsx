@@ -16,6 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { timeAgo } from "@/lib/time-ago";
 import { useGetProjects } from "@/modules/projects/hooks/project";
+import { useActiveWorkspace } from "@/modules/teams/hooks";
 import { useGetChats } from "../hooks/chat";
 import ChatActions from "./chat-actions";
 
@@ -26,6 +27,7 @@ export default function ChatsPage({ initialScope = "all" }) {
   const [query, setQuery] = useState("");
   const { data: chats, isPending } = useGetChats(scope);
   const { data: projects } = useGetProjects();
+  const { isPersonal } = useActiveWorkspace();
 
   const pickScope = (next) => {
     setScope(next);
@@ -61,9 +63,11 @@ export default function ChatsPage({ initialScope = "all" }) {
             <DropdownMenuItem onSelect={() => pickScope("all")}>
               <MessageSquareIcon className="size-4" /> All chats {scope === "all" && <CheckIcon className="ml-auto size-4" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => pickScope("drafts")}>
-              <InboxIcon className="size-4" /> Drafts {scope === "drafts" && <CheckIcon className="ml-auto size-4" />}
-            </DropdownMenuItem>
+            {isPersonal && (
+              <DropdownMenuItem onSelect={() => pickScope("drafts")}>
+                <InboxIcon className="size-4" /> Drafts {scope === "drafts" && <CheckIcon className="ml-auto size-4" />}
+              </DropdownMenuItem>
+            )}
             {projects?.length > 0 && <DropdownMenuSeparator />}
             {projects?.map((p) => (
               <DropdownMenuItem key={p.id} onSelect={() => pickScope(p.id)}>
