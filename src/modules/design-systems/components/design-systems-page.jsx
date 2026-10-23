@@ -37,7 +37,7 @@ export default function DesignSystemsPage() {
         <div>
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Design Systems</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Save a theme — brand colors, radius and font — and apply it to a chat or a project so new apps are built in that look.
+            Save a theme — brand colors and font, or a full shadcn token set imported from CSS — and apply it to a chat or a project so new apps are built in that look.
           </p>
         </div>
         <Button className="h-10 gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={() => setEditor({ system: null })}>
@@ -96,7 +96,7 @@ export default function DesignSystemsPage() {
                   <Swatch color={system.primaryColor} title="Primary" />
                   <Swatch color={system.accentColor} title="Accent" />
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {RADIUS_OPTIONS[system.radius]?.label} · {FONT_OPTIONS[system.font]?.label}
+                    {system.tokens ? "Full theme" : `${RADIUS_OPTIONS[system.radius]?.label} · ${FONT_OPTIONS[system.font]?.label}`}
                   </span>
                 </div>
               </div>

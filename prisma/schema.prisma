@@ -44,6 +44,7 @@ model DesignSystem {
   accentColor  String // hex
   radius       String // key: none | sm | md | lg | xl
   font         String // key into FONT_OPTIONS (system font stacks)
+  tokens       Json? // full shadcn token set { light, dark } when imported from CSS; null = simple theme
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
