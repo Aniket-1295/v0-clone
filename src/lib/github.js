@@ -2,6 +2,8 @@
 // files to a repository as one commit. Needs GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET
 // (a GitHub OAuth App whose callback URL is <app>/api/github/callback).
 
+import { SITE_SLUG } from "@/lib/site";
+
 const API = "https://api.github.com";
 // `repo` lets the app create private repositories and push to them.
 const SCOPES = "repo";
@@ -65,7 +67,7 @@ export const repoNameFor = (title) =>
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^[-.]+|[-.]+$/g, "")
-    .slice(0, 80) || "v0-app";
+    .slice(0, 80) || `${SITE_SLUG}-app`;
 
 /**
  * The Git tree for a version's files ({ path: content }): text files only, no dot files

@@ -23,6 +23,7 @@ import {
 import { TEMPLATE_CATEGORIES } from "@/templates/registry";
 import { CATEGORY_ICONS } from "@/modules/templates/components/category-icons";
 import { cn } from "@/lib/utils";
+import { SITE_NAME } from "@/lib/site";
 
 const NAV_LINK =
   "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground";
@@ -127,7 +128,7 @@ const Navbar = () => {
         <Link href={"/"} className="flex items-center gap-2 justify-self-start" aria-label="Home">
           <Image
             src={"/logo.svg"}
-            alt="v0"
+            alt={SITE_NAME}
             width={28}
             height={28}
             className="shrink-0 invert dark:invert-0"

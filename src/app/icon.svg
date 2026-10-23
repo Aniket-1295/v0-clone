@@ -1,0 +1,7 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="64" height="64" rx="14" fill="#0a0a0a"/>
+<g transform="translate(8 8) scale(0.75)">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M8 8H28A24 24 0 0 1 28 56H8V8ZM20 20H28A12 12 0 0 1 28 44H20V20Z" fill="white"/>
+<path d="M52 4Q53 9 58 10Q53 11 52 16Q51 11 46 10Q51 9 52 4Z" fill="white"/>
+</g>
+</svg>

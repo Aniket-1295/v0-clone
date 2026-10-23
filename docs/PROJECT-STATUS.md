@@ -1,12 +1,15 @@
 # v0-clone: project status, scope and features
 
-Snapshot taken 23 Oct 2026. `master` is at commit `4cb036e` after 58 merged PRs and 162 commits.
-Live deployment: https://v0-clone-alpha-kohl.vercel.app
+Snapshot taken 23 Oct 2026. `master` was at commit `d790e6d` after 61 merged PRs and 168 commits
+when the rebrand started. Live deployment: https://v0-clone-alpha-kohl.vercel.app (Figma import and
+Teams are live there).
 
-Recently shipped: **Teams + Invite (slim)** — optional Team above Project, workspace switcher,
-invite by email (copy link). Personal (no team / Personal selected) is unchanged. Credits stay
-per-user. Earlier: Figma import, Database, Design Systems. Next: see the open items in
-[V0-FEATURE-GAP.md](V0-FEATURE-GAP.md).
+Recently shipped: **Rebrand to Draftsmith** — the product name, an original logo and favicon, and
+plain Mini / Pro / Max model names. The name lives in `src/lib/site.js` (`SITE_NAME`, `SITE_SLUG`),
+so a later rename is one line. Before that: **Teams + Invite (slim)** — optional Team above
+Project, workspace switcher, invite by email (copy link); Personal is unchanged and credits stay
+per-user. Earlier: Figma import, Database, Design Systems. Next: the launch items in section 6, and
+the open items in [V0-FEATURE-GAP.md](V0-FEATURE-GAP.md).
 
 ## 1. What the project is
 
@@ -21,7 +24,7 @@ downloaded, shared, pushed to GitHub, or published to a permanent Vercel URL.
 |---|---|
 | Core loop (prompt → agent → live preview → follow-ups) | Working |
 | Reliability (sandbox lifetime, failures, refunds, polling) | Fixed (Phase 1 of the audit) |
-| Unit tests | 25 files, 170 tests, all passing (`npm test`) |
+| Unit tests | 26 files, 173 tests, all passing (`npm test`) |
 | Lint | Clean: 0 errors, 1 warning (`react-hooks/exhaustive-deps`) |
 | CI | GitHub Actions on every PR and push to `master`: Prisma validate, lint, tests, build |
 | Post-deploy check | `node scripts/smoke.mjs <url> --sync` |
@@ -195,20 +198,23 @@ Based on the audit's Phases 2 and 4, updated 22 Oct 2026.
 - ✅ Error monitoring with Sentry (client, server, Inngest), off unless the DSN env vars are set.
 - ✅ Legal / SEO: Terms and Privacy pages, `robots.txt`, sitemap, Open Graph image and metadata.
 - ✅ Abuse controls: one generation at a time per user, server-side prompt length limit.
+- ✅ Brand: renamed to **Draftsmith** (working name) with an original logo and favicon; no v0 name
+  or mark in the UI. Check the name is free to use (trademark, domain) before launch. Internal ids
+  that users never see (storage keys, the Inngest app id, the design-mode message types) keep their
+  old `v0` prefix on purpose, because renaming them would reset saved settings or orphan functions.
+  Already-published apps keep their Vercel project and URL (the name is saved on first publish).
 
 **Still open:**
-1. **Brand**: still named "V0 Clone" and uses the v0 logo. The name now lives in one file
-   (`src/lib/site.js`), so a rename is a small change. Must be done before launch.
-2. **Clerk production instance** and custom domain. The live site still uses a `pk_test` key. Then
+1. **Clerk production instance** and custom domain. The live site still uses a `pk_test` key. Then
    verify Pro checkout and entitlement end to end, and configure the webhook on the prod instance.
-3. **Analytics**: no product analytics yet (Sentry covers errors only).
-4. **Abuse controls, remaining**: no prompt content checks and no E2B spend-cap alerts.
-5. **TypeScript**: not started. No end-to-end (Playwright) test yet.
-6. **Model strategy**: the audit suggests a stronger coding model, with per-plan model tiers and
+2. **Analytics**: no product analytics yet (Sentry covers errors only).
+3. **Abuse controls, remaining**: no prompt content checks and no E2B spend-cap alerts.
+4. **TypeScript**: not started. No end-to-end (Playwright) test yet.
+5. **Model strategy**: the audit suggests a stronger coding model, with per-plan model tiers and
    token, time and cost budgets per run.
-7. **Lifecycle email** (welcome, generation finished, low credits, receipts), and usage and
+6. **Lifecycle email** (welcome, generation finished, low credits, receipts), and usage and
    admin dashboards.
-8. **Responsive workspace** for phones.
+7. **Responsive workspace** for phones.
 
 ## 7. Running locally
 

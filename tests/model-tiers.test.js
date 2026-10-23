@@ -28,7 +28,7 @@ describe("credit messages", () => {
 
   it("names the cost when the user has some credits but not enough", () => {
     expect(notEnoughCreditsMessage(getTier("max"), 1)).toBe(
-      "v0 Max costs 4 credits and you have 1 credit left. Pick a smaller model or upgrade."
+      "Max costs 4 credits and you have 1 credit left. Pick a smaller model or upgrade."
     );
     expect(notEnoughCreditsMessage(getTier("mini"), 0)).toMatch(/run out of credits/);
   });
@@ -92,7 +92,7 @@ describe("spendCredit", () => {
     limiter.consumed = 4;
     const result = await spendCredit(getTier("pro"));
     expect(result).toMatchObject({ ok: false, code: "TOO_MANY_REQUESTS" });
-    expect(result.message).toBe("v0 Pro costs 2 credits and you have 1 credit left. Pick a smaller model or upgrade.");
+    expect(result.message).toBe("Pro costs 2 credits and you have 1 credit left. Pick a smaller model or upgrade.");
     expect(limiter.consumed).toBe(4);
     // The last credit still pays for Mini.
     expect(await spendCredit(getTier("mini"))).toBeNull();

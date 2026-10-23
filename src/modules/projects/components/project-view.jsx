@@ -54,6 +54,7 @@ import DatabaseView from "./database-view";
 import WorkspaceTabBar from "./workspace-tab-bar";
 import GithubReturnToasts from "./github-return-toasts";
 import { showActionError } from "@/lib/show-action-error";
+import { SITE_NAME, SITE_SLUG } from "@/lib/site";
 import PublishButton from "./publish-button";
 import ShareButton from "./share-button";
 
@@ -67,7 +68,7 @@ const EmptyPane = ({ icon: Icon, text }) => (
 );
 
 const slugify = (text) =>
-  (text || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "v0-app";
+  (text || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || `${SITE_SLUG}-app`;
 
 /** Zips a version's files (the full app tree) in the browser and saves it. */
 const downloadFiles = (files, name) => {
@@ -95,7 +96,7 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState, openPanels
   const generating = messages?.at(-1)?.role === MessageRole.USER;
   const isLatest = !!activeFragment && activeFragment.id === latestFragmentId;
   const versions = useMemo(() => messages?.flatMap((message) => (message.fragments ? [message.fragments] : [])) ?? [], [messages]);
-  const readOnlyReason = !isLatest ? "Older version: restore it to edit." : generating ? "Editing is paused while v0 works." : null;
+  const readOnlyReason = !isLatest ? "Older version: restore it to edit." : generating ? `Editing is paused while ${SITE_NAME} works.` : null;
 
   const onSaveEdits = async (edits) => {
     try {
@@ -169,7 +170,7 @@ const PreviewPane = ({ chatId, activeFragment, tabState, setTabState, openPanels
   const askDesignChange = async (prompt) => {
     try {
       await askV0.mutateAsync(prompt);
-      toast.success("Sent to v0");
+      toast.success(`Sent to ${SITE_NAME}`);
       stopDesign();
     } catch (error) {
       showActionError(error, router, "Could not send the request.");

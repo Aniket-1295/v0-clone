@@ -30,6 +30,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SITE_NAME } from "@/lib/site";
 import TemplateThumbnail from "@/modules/templates/components/template-thumbnail";
 
 // Springy ease used across the cards (same curve as v0's hover animations).
@@ -551,7 +552,7 @@ export default function FeaturesSection() {
         <DesignSystemVisual />
       </Card>
 
-      <Card title="Agentic by default" text="v0 plans, creates tasks and wires up data and APIs as it builds." className="min-h-[412px]">
+      <Card title="Agentic by default" text={`${SITE_NAME} plans, creates tasks and wires up data and APIs as it builds.`} className="min-h-[412px]">
         <AgenticVisual />
       </Card>
 

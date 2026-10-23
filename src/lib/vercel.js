@@ -1,6 +1,8 @@
 // Publishing: deploys a chat's app (a Fragment's file tree) to its own Vercel project with
 // Vercel's REST API. Needs VERCEL_TOKEN; VERCEL_TEAM_ID picks the team (scope) to deploy to.
 
+import { SITE_SLUG } from "@/lib/site";
+
 const API = "https://api.vercel.com";
 const MAX_ERROR_CHARS = 1500;
 
@@ -38,7 +40,11 @@ const vercel = async (path, options = {}) => {
   return body;
 };
 
-/** A valid, readable Vercel project name for a chat, e.g. "v0-rosas-bakery-k2x9qz". */
+/**
+ * A valid, readable Vercel project name for a chat, e.g. "draftsmith-rosas-bakery-k2x9qz".
+ * Only used on a chat's first publish: the name is then saved on the chat, so a rename never
+ * moves an already-published app to a new project or URL.
+ */
 export const projectNameFor = (chat) => {
   const slug = (chat.title || "app")
     .toLowerCase()
@@ -46,7 +52,7 @@ export const projectNameFor = (chat) => {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40)
     .replace(/-+$/g, "");
-  return `v0-${slug || "app"}-${chat.id.slice(-6).toLowerCase()}`;
+  return `${SITE_SLUG}-${slug || "app"}-${chat.id.slice(-6).toLowerCase()}`;
 };
 
 /**

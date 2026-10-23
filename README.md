@@ -1,4 +1,4 @@
-# 🚀 V0 Clone — AI Powered UI Generation Platform
+# 🚀 Draftsmith — AI Powered UI Generation Platform
 
 A full-stack, production-ready **V0-style AI UI generator** built to explore modern SaaS architecture, AI workflows, and scalable system design.
 
@@ -6,9 +6,9 @@ This project focuses on **real-world engineering practices** such as authenticat
 
 ---
 
-## ✨ What is V0 Clone?
+## ✨ What is Draftsmith?
 
-**V0 Clone** is an AI-powered web application that allows users to generate UI components and layouts using natural language prompts.
+**Draftsmith** (repository: `v0-clone`) is an AI-powered web application that allows users to generate UI components and layouts using natural language prompts.
 
 Users can:
 - Sign up and authenticate securely

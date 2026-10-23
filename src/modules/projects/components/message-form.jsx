@@ -31,6 +31,7 @@ import ModelPicker, { useModelTier } from "@/modules/app/components/model-picker
 import { GenerateImagesChip, GenerateImagesMenuItem } from "@/modules/app/components/generate-images-toggle";
 import { useGenerateImages } from "@/hooks/use-stored-preference";
 import FigmaImportDialog from "@/modules/figma/components/figma-import-dialog";
+import { SITE_NAME } from "@/lib/site";
 
 
 // Empty is allowed when an image is attached (the prompt then asks to recreate it).
@@ -110,7 +111,7 @@ const MessageForm = ({chatId, isGenerating = false, onStop, isStopping = false, 
                 {...field}
                 disabled={isPending}
                 aria-label="Ask for a change"
-                placeholder="Ask v0 to change something..."
+                placeholder={`Ask ${SITE_NAME} to change something...`}
                 onPaste={attachment.onPaste}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => {

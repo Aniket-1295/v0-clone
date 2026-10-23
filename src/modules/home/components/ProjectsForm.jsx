@@ -18,6 +18,7 @@ import { useCreateChat } from "@/modules/chats/hooks/chat";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { showActionError } from "@/lib/show-action-error";
 import { MAX_PROMPT_LENGTH } from "@/lib/generation-limits";
+import { SITE_NAME } from "@/lib/site";
 import { PromptLength, isPromptTooLong } from "@/components/prompt-length";
 
 const formSchema = z.object({
@@ -76,7 +77,7 @@ const ProjectsForm = ({ form }) => {
             <TextAreaAutosize
               {...field}
               aria-label="Describe what you want to build"
-              placeholder={listening ? "Listening..." : "Ask v0 to build..."}
+              placeholder={listening ? "Listening..." : `Ask ${SITE_NAME} to build...`}
               onFocus={() => setIsFocused(true)}
               onBlur={() => {
                 setIsFocused(false);

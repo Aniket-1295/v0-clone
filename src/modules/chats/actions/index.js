@@ -32,6 +32,7 @@ import {
   publicHost,
 } from "@/lib/database";
 import { createDeployment, getDeploymentState, isPublishConfigured, projectNameFor, syncProjectEnv } from "@/lib/vercel";
+import { SITE_NAME } from "@/lib/site";
 import {
   connectSandbox,
   getLatestFragment,
@@ -914,7 +915,7 @@ export const pushToGithub = async (chatId, { repoName, isPrivate = true } = {}) 
   try {
     if (!chat.githubRepo) {
       const name = repoNameFor(repoName || chat.title);
-      const created = await createRepository(token, { name, isPrivate, description: `${chat.title} (made with v0 clone)` });
+      const created = await createRepository(token, { name, isPrivate, description: `${chat.title} (made with ${SITE_NAME})` });
       chat = await db.chat.update({
         where: { id: chatId },
         data: { githubRepo: created.repo, githubBranch: created.branch },
@@ -926,7 +927,7 @@ export const pushToGithub = async (chatId, { repoName, isPrivate = true } = {}) 
       repo: chat.githubRepo,
       branch: chat.githubBranch || "main",
       files: latest.files,
-      message: `v0: ${latest.title}`,
+      message: `${SITE_NAME}: ${latest.title}`,
     });
     chat = await db.chat.update({
       where: { id: chatId },

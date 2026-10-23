@@ -1,6 +1,7 @@
 import Image from "next/image";
 import React from "react";
 import AgentProgress from "./agent-progress";
+import { SITE_NAME } from "@/lib/site";
 
 // Shown while the agent works on the latest prompt: its live steps.
 const MessageLoading = ({ steps, startedAt }) => {
@@ -10,7 +11,7 @@ const MessageLoading = ({ steps, startedAt }) => {
         <div className="flex size-6 items-center justify-center rounded-md border bg-card">
           <Image
             src={"/logo.svg"}
-            alt="v0"
+            alt={SITE_NAME}
             width={14}
             height={14}
             className="shrink-0 invert dark:invert-0"

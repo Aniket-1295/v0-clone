@@ -3,9 +3,9 @@
 // src/inngest/gemini.js (tierModels).
 
 export const MODEL_TIERS = [
-  { id: "mini", name: "v0 Mini", description: "Fast generation for everyday apps", credits: 1, plan: null },
-  { id: "pro", name: "v0 Pro", description: "Thinks longer for complex, multi-page apps", credits: 2, plan: null },
-  { id: "max", name: "v0 Max", description: "Our strongest model for the hardest builds", credits: 4, plan: "pro" },
+  { id: "mini", name: "Mini", description: "Fast generation for everyday apps", credits: 1, plan: null },
+  { id: "pro", name: "Pro", description: "Thinks longer for complex, multi-page apps", credits: 2, plan: null },
+  { id: "max", name: "Max", description: "Our strongest model for the hardest builds", credits: 4, plan: "pro" },
 ];
 
 export const DEFAULT_TIER_ID = "mini";

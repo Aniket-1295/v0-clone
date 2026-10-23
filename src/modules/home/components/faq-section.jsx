@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SITE_NAME } from "@/lib/site";
 import {
   Accordion,
   AccordionContent,
@@ -8,8 +9,8 @@ import {
 
 const FAQS = [
   {
-    q: "What is v0?",
-    a: "v0 turns a description in plain English into a working web app. It writes a Next.js app with Tailwind CSS and shadcn/ui, runs it in a cloud sandbox and shows you a live preview.",
+    q: `What is ${SITE_NAME}?`,
+    a: `${SITE_NAME} turns a description in plain English into a working web app. It writes a Next.js app with Tailwind CSS and shadcn/ui, runs it in a cloud sandbox and shows you a live preview.`,
   },
   {
     q: "What can I build?",
@@ -17,7 +18,7 @@ const FAQS = [
   },
   {
     q: "Can I change an app after it is generated?",
-    a: "Yes. Keep chatting in the project: describe what to change and v0 builds a new version. Earlier versions stay in the chat, so you can open any of them again.",
+    a: `Yes. Keep chatting in the project: describe what to change and ${SITE_NAME} builds a new version. Earlier versions stay in the chat, so you can open any of them again.`,
   },
   {
     q: "Can I see and copy the code?",

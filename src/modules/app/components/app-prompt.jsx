@@ -55,6 +55,7 @@ import { useAppShell } from "./app-shell";
 import ModelPicker, { useModelTier } from "./model-picker";
 import { GenerateImagesChip, GenerateImagesMenuItem } from "./generate-images-toggle";
 import { useGenerateImages } from "@/hooks/use-stored-preference";
+import { SITE_NAME } from "@/lib/site";
 
 // Sent when the user attaches an image without typing anything.
 const IMAGE_ONLY_PROMPT = "Recreate this design.";
@@ -140,7 +141,7 @@ export default function AppPrompt({ initialProjectId = null }) {
         minRows={2}
         maxRows={12}
         aria-label="Describe what you want to build"
-        placeholder={speech.listening ? "Listening..." : "Ask v0 to build..."}
+        placeholder={speech.listening ? "Listening..." : `Ask ${SITE_NAME} to build...`}
         className="w-full resize-none bg-transparent px-1 pt-3 text-sm outline-none placeholder:text-muted-foreground md:text-base"
       />
 
